@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 
 # ── Config ─────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'   # get from @BotFather on Telegram
+TELEGRAM_BOT_TOKEN = '8518190489:AAFIEgYTs4oI8EEVQ9Pe4pVDMDSQu9cpYY4'   # get from @BotFather on Telegram
 CSIP2_API_BASE     = 'http://localhost:5000'  # Kaden's Flask API (change to deployed URL later)
 
 # Conversation states
