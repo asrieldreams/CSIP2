@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CSIP2 — Scam Intelligence Feed</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  
+  <nav>
+    <div class="nav-logo">🛡️ CSIP2</div>
+    <div class="nav-links">
+      <a href="index.html">Report a Scam</a>
+      <a href="feed.html" class="active">Scam Feed</a>
+    </div>
+  </nav>
+
+  
+  <section class="hero">
+    <h1>Scam Intelligence Feed</h1>
+    <p>Browse confirmed and flagged scam indicators reported by the community.</p>
+  </section>
+
+  <main class="container">
+
+    
+    <div class="card filter-bar">
+      <div class="filter-row">
+        <div class="form-group" style="flex:2">
+          <label for="search">Search</label>
+          <input type="text" id="search" placeholder="Search URL, phone, email..." />
+        </div>
+        <div class="form-group">
+          <label for="filter-type">Scam Type</label>
+          <select id="filter-type">
+            <option value="">All Types</option>
+            <option value="Phishing">Phishing</option>
+            <option value="E-Commerce Scam">E-Commerce Scam</option>
+            <option value="Impersonation">Impersonation</option>
+            <option value="Love Scam">Love Scam</option>
+            <option value="Investment Scam">Investment Scam</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="filter-list">Status</label>
+          <select id="filter-list">
+            <option value="">All</option>
+            <option value="blacklist">🔴 Blacklisted</option>
+            <option value="whitelist">🟡 Whitelisted</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end;align-items:flex-end">
+          <button onclick="loadReports()">Search</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Stats Bar ── -->
+    <div class="stats-bar" id="stats-bar">
+      <span id="total-count">Loading...</span>
+    </div>
+
+    
+    <div id="reports-container">
+      <div class="loading">Loading scam reports...</div>
+    </div>
+
+   
+    <div class="pagination" id="pagination"></div>
+
+  </main>
+
+  <footer>
+    <p>🛡️ CSIP2 — Crowdsourced Scam Intelligence Platform 2 &nbsp;|&nbsp; Temasek Polytechnic CDF AY24/25</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    // Load reports when page opens
+    window.onload = () => loadReports();
+  </script>
+
+</body>
+</html>
