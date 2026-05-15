@@ -1,1 +1,326 @@
-feggeg
+/* ============================================================
+   CSIP2 — Frontend Stylesheet
+   Owner: Caden (Frontend Lead)
+   ============================================================ */
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f4f6fb;
+  color: #222;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* ── Navigation ── */
+nav {
+  background: #1a2e4a;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.nav-logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.nav-links { display: flex; gap: 8px; }
+
+.nav-links a {
+  color: #aec6e8;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+  background: #2e74b5;
+  color: #fff;
+}
+
+/* ── Hero ── */
+.hero {
+  background: linear-gradient(135deg, #1a2e4a 0%, #2e74b5 100%);
+  color: #fff;
+  padding: 48px 32px 40px;
+  text-align: center;
+}
+
+.hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+.hero p  { font-size: 16px; color: #c8dff5; max-width: 560px; margin: 0 auto; }
+
+/* ── Container ── */
+.container {
+  max-width: 860px;
+  margin: 32px auto;
+  padding: 0 20px;
+  flex: 1;
+  width: 100%;
+}
+
+/* ── Card ── */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  margin-bottom: 24px;
+}
+
+/* ── Banners ── */
+.banner {
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.banner-success { background: #e6f9f0; color: #1a7a4a; border: 1px solid #a3e4c1; }
+.banner-error   { background: #fef0f0; color: #c0392b; border: 1px solid #f5b7b1; }
+
+/* ── Form ── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  border: 1.5px solid #d0d9e8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #f9fbfd;
+  color: #222;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: #2e74b5;
+  box-shadow: 0 0 0 3px rgba(46,116,181,0.12);
+  background: #fff;
+}
+
+.form-group textarea { resize: vertical; }
+
+.hint {
+  font-size: 11.5px;
+  color: #888;
+  margin-top: 5px;
+}
+
+.optional { color: #aaa; font-weight: 400; font-size: 11px; }
+
+/* ── Button ── */
+button {
+  background: #2e74b5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+button:hover  { background: #1a5a96; }
+button:active { transform: scale(0.98); }
+button:disabled { background: #aaa; cursor: not-allowed; }
+
+/* ── How It Works Steps ── */
+.info-section { margin-top: 8px; }
+.info-section h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2e4a;
+  margin-bottom: 16px;
+}
+
+.steps { display: flex; flex-direction: column; gap: 16px; }
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #f4f6fb;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.step-icon { font-size: 26px; flex-shrink: 0; }
+.step strong { display: block; font-size: 14px; margin-bottom: 4px; color: #1a2e4a; }
+.step p { font-size: 13px; color: #666; }
+
+/* ── Filter Bar ── */
+.filter-bar { padding: 20px 24px; }
+
+.filter-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.filter-row .form-group { margin-bottom: 0; flex: 1; min-width: 140px; }
+
+/* ── Stats Bar ── */
+.stats-bar {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+/* ── Report Cards (Feed) ── */
+.report-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  border-left: 5px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-card.blacklist { border-left-color: #e74c3c; }
+.report-card.whitelist { border-left-color: #f39c12; }
+.report-card.pending   { border-left-color: #95a5a6; }
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-indicator {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a2e4a;
+  word-break: break-all;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge-blacklist { background: #fde8e8; color: #c0392b; }
+.badge-whitelist { background: #fef9e7; color: #d68910; }
+.badge-pending   { background: #f0f0f0; color: #888; }
+
+.report-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #888;
+}
+
+.report-meta span { display: flex; align-items: center; gap: 4px; }
+
+.report-description {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.pagination button {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: #fff;
+  color: #2e74b5;
+  border: 1.5px solid #2e74b5;
+  border-radius: 6px;
+}
+
+.pagination button.active,
+.pagination button:hover { background: #2e74b5; color: #fff; }
+
+/* ── Loading / Empty ── */
+.loading { text-align: center; padding: 40px; color: #aaa; font-size: 15px; }
+.empty   { text-align: center; padding: 40px; color: #aaa; font-size: 15px; }
+
+/* ── Admin Panel ── */
+.admin-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+.btn-approve  { background: #27ae60; font-size: 13px; padding: 7px 16px; }
+.btn-approve:hover { background: #1e8449; }
+.btn-reject   { background: #e74c3c; font-size: 13px; padding: 7px 16px; }
+.btn-reject:hover  { background: #c0392b; }
+
+.btn-blacklist { background: #c0392b; font-size: 13px; padding: 7px 16px; }
+.btn-blacklist:hover { background: #a93226; }
+.btn-whitelist { background: #d68910; font-size: 13px; padding: 7px 16px; }
+.btn-whitelist:hover { background: #b7770d; }
+
+/* ── Footer ── */
+footer {
+  background: #1a2e4a;
+  color: #7fa8cc;
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  margin-top: auto;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  nav { padding: 0 16px; }
+  .hero { padding: 32px 16px; }
+  .hero h1 { font-size: 24px; }
+  .container { padding: 0 12px; }
+  .card { padding: 20px 16px; }
+  .filter-row { flex-direction: column; }
+}
