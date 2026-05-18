@@ -1,8 +1,11 @@
 import pymysql
 import os
+import ssl
 from dotenv import load_dotenv
 
 load_dotenv()
+
+ssl_context = ssl.create_default_context()
 
 connection = pymysql.connect(
     host=os.getenv("DB_HOST"),
@@ -10,7 +13,7 @@ connection = pymysql.connect(
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD"),
     database=os.getenv("DB_NAME"),
-    ssl={"ssl": {}},
+    ssl=ssl_context,
     cursorclass=pymysql.cursors.DictCursor
 )
 
