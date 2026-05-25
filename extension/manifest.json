@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Scam Reporter Shield",
+  "version": "1.0",
+  "description": "Easily report scam websites to our database.",
+  "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
