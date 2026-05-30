@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScamWatch — Why Choose Us</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0a0f1e;
+    --ink-soft: #3a4060;
+    --ink-muted: #6b7394;
+    --bg: #f4f6ff;
+    --surface: #ffffff;
+    --surface2: #eef1ff;
+    --accent: #1a3cf8;
+    --accent-light: #e8edff;
+    --accent2: #00c17c;
+    --accent2-light: #e0fff3;
+    --warn: #f5a524;
+    --warn-light: #fff8eb;
+    --red: #e63946;
+    --red-light: #fff0f1;
+    --border: rgba(26,60,248,0.12);
+    --border-soft: rgba(10,15,30,0.08);
+    --shadow: 0 4px 24px rgba(26,60,248,0.10);
+    --shadow-lg: 0 12px 48px rgba(26,60,248,0.15);
+    --r: 16px;
+    --r-sm: 10px;
+    --r-pill: 999px;
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(244,246,255,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 0 clamp(1.5rem,5vw,5rem);
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .nav-logo {
+    font-family: var(--font-display);
+    font-weight: 800; font-size: 1.35rem;
+    color: var(--ink);
+    text-decoration: none;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .nav-logo-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-size: 0.9rem; color: var(--ink-soft); text-decoration: none; font-weight: 500; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-cta {
+    background: var(--accent); color: #fff;
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--r-pill);
+    font-size: 0.875rem; font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+  /* ── HERO ── */
+  .hero {
+    padding: clamp(5rem,10vw,9rem) clamp(1.5rem,5vw,5rem) clamp(4rem,8vw,7rem);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: var(--r-pill);
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border);
+  }
+  .hero-badge-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.6rem, 5vw, 4rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 .highlight {
+    color: var(--accent);
+    position: relative;
+  }
+  .hero h1 .highlight::after {
+    content: '';
+    position: absolute; bottom: -4px; left: 0; right: 0;
+    height: 4px; border-radius: 2px;
+    background: var(--accent);
+    opacity: 0.25;
+  }
+  .hero-desc {
+    font-size: 1.1rem; color: var(--ink-soft); line-height: 1.75;
+    margin-bottom: 2.5rem; font-weight: 300;
+  }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    padding: 0.85rem 2rem; border-radius: var(--r-pill);
+    font-weight: 600; font-size: 0.95rem;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .btn-secondary {
+    background: transparent; color: var(--ink);
+    padding: 0.85rem 2rem; border-radius: var(--r-pill);
+    font-weight: 500; font-size: 0.95rem;
+    text-decoration: none; border: 1.5px solid var(--border-soft);
+    transition: border-color 0.2s, background 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-secondary:hover { border-color: var(--accent); background: var(--accent-light); }
+
+  /* ── HERO VISUAL ── */
+  .hero-visual {
+    display: flex; flex-direction: column; gap: 1rem;
+    position: relative;
+  }
+  .stat-cards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  }
+  .stat-card {
+    background: var(--surface);
+    border-radius: var(--r);
+    padding: 1.4rem 1.5rem;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow);
+    transition: transform 0.3s;
+  }
+  .stat-card:hover { transform: translateY(-4px); }
+  .stat-card.wide { grid-column: span 2; }
+  .stat-card-label {
+    font-size: 0.78rem; color: var(--ink-muted); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    margin-bottom: 0.5rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot-green { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+  .dot-red { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; animation: pulse 1.5s infinite; }
+  .stat-card-num {
+    font-family: var(--font-display);
+    font-size: 2rem; font-weight: 800;
+    color: var(--ink); line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+  .stat-card-sub { font-size: 0.82rem; color: var(--ink-muted); }
+  .activity-feed {
+    background: var(--surface);
+    border-radius: var(--r);
+    border: 1px solid var(--border-soft);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .feed-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 0.82rem; font-weight: 600; color: var(--ink-soft);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feed-item {
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: flex-start; gap: 12px;
+    animation: slideIn 0.4s ease both;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .feed-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+  }
+  .feed-icon.red { background: var(--red-light); color: var(--red); }
+  .feed-icon.amber { background: var(--warn-light); color: var(--warn); }
+  .feed-icon.green { background: var(--accent2-light); color: var(--accent2); }
+  .feed-text { flex: 1; }
+  .feed-title { font-size: 0.85rem; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
+  .feed-time { font-size: 0.75rem; color: var(--ink-muted); }
+
+  /* ── SECTION COMMONS ── */
+  section { padding: clamp(4rem,8vw,7rem) clamp(1.5rem,5vw,5rem); }
+  .section-inner { max-width: 1200px; margin: 0 auto; }
+  .section-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 1rem;
+  }
+  .section-label::before {
+    content: ''; width: 20px; height: 2px; background: var(--accent); border-radius: 1px;
+  }
+  .section-heading {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    font-weight: 800; line-height: 1.15;
+    letter-spacing: -0.02em; color: var(--ink);
+    margin-bottom: 1rem;
+  }
+  .section-sub {
+    font-size: 1.05rem; color: var(--ink-soft);
+    line-height: 1.75; max-width: 580px;
+    font-weight: 300;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how-bg {
+    background: var(--ink);
+    position: relative; overflow: hidden;
+  }
+  .how-bg::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 60% 40%, rgba(26,60,248,0.3), transparent 70%);
+    pointer-events: none;
+  }
+  .how-bg .section-label { color: rgba(255,255,255,0.5); }
+  .how-bg .section-label::before { background: rgba(255,255,255,0.4); }
+  .how-bg .section-heading { color: #fff; }
+  .how-bg .section-sub { color: rgba(255,255,255,0.6); }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5px;
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--r);
+    overflow: hidden;
+    margin-top: 3.5rem;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .step {
+    background: rgba(255,255,255,0.03);
+    padding: 2.5rem 2rem;
+    position: relative;
+    transition: background 0.3s;
+  }
+  .step:hover { background: rgba(255,255,255,0.07); }
+  .step-num {
+    font-family: var(--font-display);
+    font-size: 3.5rem; font-weight: 800;
+    color: rgba(255,255,255,0.06);
+    line-height: 1; margin-bottom: 1.5rem;
+    letter-spacing: -0.04em;
+  }
+  .step-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: rgba(26,60,248,0.25);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.2rem;
+  }
+  .step-icon svg { width: 22px; height: 22px; fill: none; stroke: #6e9dff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .step h3 {
+    font-family: var(--font-display);
+    font-size: 1.1rem; font-weight: 700;
+    color: #fff; margin-bottom: 0.75rem;
+  }
+  .step p { font-size: 0.9rem; color: rgba(255,255,255,0.55); line-height: 1.75; }
+  .step-arrow {
+    position: absolute; right: -12px; top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 24px; height: 24px;
+    background: var(--accent); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-arrow svg { width: 10px; height: 10px; fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── WHY CHOOSE US ── */
+  .features-bg { background: var(--bg); }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem; margin-top: 3.5rem;
+  }
+  .feature-card {
+    background: var(--surface);
+    border-radius: var(--r);
+    padding: 2rem 2rem 2.25rem;
+    border: 1px solid var(--border-soft);
+    transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+    position: relative; overflow: hidden;
+  }
+  .feature-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .feature-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); border-color: var(--border); }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-card.blue::before { background: var(--accent); }
+  .feature-card.green::before { background: var(--accent2); }
+  .feature-card.amber::before { background: var(--warn); }
+  .feature-card.red::before { background: var(--red); }
+  .feat-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.25rem;
+  }
+  .feat-icon.blue { background: var(--accent-light); }
+  .feat-icon.green { background: var(--accent2-light); }
+  .feat-icon.amber { background: var(--warn-light); }
+  .feat-icon.red { background: var(--red-light); }
+  .feat-icon svg { width: 24px; height: 24px; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .feat-icon.blue svg { stroke: var(--accent); }
+  .feat-icon.green svg { stroke: var(--accent2); }
+  .feat-icon.amber svg { stroke: var(--warn); }
+  .feat-icon.red svg { stroke: var(--red); }
+  .feature-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem; font-weight: 700;
+    color: var(--ink); margin-bottom: 0.75rem;
+  }
+  .feature-card p { font-size: 0.92rem; color: var(--ink-soft); line-height: 1.75; }
+  .feature-card .badge {
+    display: inline-block; margin-top: 1.25rem;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em;
+    padding: 4px 12px; border-radius: var(--r-pill);
+  }
+  .badge.free { background: var(--accent2-light); color: var(--accent2); }
+  .badge.new { background: var(--accent-light); color: var(--accent); }
+  .badge.realtime { background: var(--warn-light); color: var(--warn); }
+
+  /* ── COMPARISON TABLE ── */
+  .compare-bg { background: var(--surface2); }
+  .compare-wrap { overflow-x: auto; margin-top: 3rem; border-radius: var(--r); overflow: hidden; border: 1px solid var(--border-soft); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 0.9rem; }
+  th {
+    padding: 1.1rem 1.5rem; text-align: left;
+    border-bottom: 1px solid var(--border-soft);
+    font-weight: 600; color: var(--ink-soft);
+    font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.07em;
+  }
+  th.highlight-col { background: var(--accent); color: #fff; }
+  td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--ink-soft);
+    vertical-align: middle;
+  }
+  td.feature-name { font-weight: 500; color: var(--ink); }
+  td.highlight-col { background: rgba(26,60,248,0.04); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--accent-light); }
+  tr:hover td.highlight-col { background: rgba(26,60,248,0.08); }
+  .check { color: var(--accent2); font-size: 1.1rem; }
+  .cross { color: rgba(10,15,30,0.25); font-size: 1rem; }
+  .partial { color: var(--warn); font-size: 0.85rem; font-weight: 500; }
+
+  /* ── APP PROMO ── */
+  .app-section {
+    background: linear-gradient(135deg, #0f1e7a 0%, #1a3cf8 60%, #0066ff 100%);
+    position: relative; overflow: hidden;
+  }
+  .app-section::after {
+    content: '';
+    position: absolute; top: -40%; right: -10%;
+    width: 600px; height: 600px; border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    pointer-events: none;
+  }
+  .app-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4rem; align-items: center;
+    position: relative; z-index: 1;
+  }
+  .app-section .section-label { color: rgba(255,255,255,0.5); }
+  .app-section .section-label::before { background: rgba(255,255,255,0.4); }
+  .app-section .section-heading { color: #fff; }
+  .app-section .section-sub { color: rgba(255,255,255,0.65); }
+  .app-features { margin-top: 2rem; display: flex; flex-direction: column; gap: 1rem; }
+  .app-feature {
+    display: flex; align-items: flex-start; gap: 16px;
+    background: rgba(255,255,255,0.07);
+    border-radius: var(--r-sm);
+    padding: 1.1rem 1.25rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: background 0.2s;
+  }
+  .app-feature:hover { background: rgba(255,255,255,0.12); }
+  .app-feat-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .app-feat-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .app-feat-text h4 { font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 3px; }
+  .app-feat-text p { font-size: 0.82rem; color: rgba(255,255,255,0.6); line-height: 1.55; }
+  .store-buttons { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+  .store-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--r-sm); padding: 0.8rem 1.4rem;
+    color: #fff; text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+    font-size: 0.85rem;
+  }
+  .store-btn:hover { background: rgba(255,255,255,0.18); transform: translateY(-2px); }
+  .store-btn svg { width: 22px; height: 22px; fill: #fff; }
+  .store-btn-text small { display: block; font-size: 0.7rem; opacity: 0.7; }
+  .store-btn-text strong { font-size: 0.9rem; font-weight: 600; }
+
+  /* Mobile mockup */
+  .phone-mockup {
+    display: flex; justify-content: center;
+    position: relative;
+  }
+  .phone-frame {
+    width: 260px;
+    background: #0a0f1e;
+    border-radius: 44px;
+    border: 8px solid rgba(255,255,255,0.15);
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.08);
+    position: relative;
+  }
+  .phone-notch {
+    width: 110px; height: 28px; border-radius: 0 0 18px 18px;
+    background: #0a0f1e; margin: 0 auto;
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    z-index: 2; border: 6px solid rgba(255,255,255,0.05);
+    border-top: none;
+  }
+  .phone-screen {
+    padding: 3rem 1rem 1.5rem;
+    min-height: 480px;
+    background: #12182f;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .phone-header {
+    font-family: var(--font-display);
+    font-size: 0.85rem; font-weight: 700; color: #fff;
+    text-align: center; margin-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .phone-header-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 2s infinite; }
+  .scan-card {
+    background: rgba(26,60,248,0.2);
+    border: 1px solid rgba(26,60,248,0.4);
+    border-radius: 14px;
+    padding: 1rem;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .scan-pill {
+    background: var(--red); color: #fff;
+    font-size: 0.65rem; font-weight: 700;
+    padding: 3px 8px; border-radius: var(--r-pill);
+    white-space: nowrap;
+  }
+  .scan-domain { font-size: 0.72rem; color: rgba(255,255,255,0.7); flex: 1; font-family: monospace; }
+  .phone-stat-row { display: flex; gap: 8px; }
+  .phone-stat {
+    flex: 1; background: rgba(255,255,255,0.05);
+    border-radius: 12px; padding: 0.75rem 0.6rem;
+    text-align: center; border: 1px solid rgba(255,255,255,0.07);
+  }
+  .phone-stat-num { font-family: var(--font-display); font-size: 1.1rem; font-weight: 800; color: #fff; }
+  .phone-stat-label { font-size: 0.6rem; color: rgba(255,255,255,0.45); margin-top: 2px; }
+  .phone-report-btn {
+    background: var(--accent); color: #fff;
+    border-radius: 12px; padding: 0.85rem;
+    text-align: center; font-size: 0.8rem; font-weight: 700;
+    cursor: pointer; margin-top: 0.5rem;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .phone-report-btn svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .mini-feed { display: flex; flex-direction: column; gap: 6px; }
+  .mini-feed-item {
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px; padding: 0.65rem 0.8rem;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .mini-feed-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .mini-feed-text { font-size: 0.68rem; color: rgba(255,255,255,0.6); flex: 1; }
+  .mini-feed-time { font-size: 0.6rem; color: rgba(255,255,255,0.3); }
+
+  /* ── TESTIMONIALS / STATS ── */
+  .stats-section { background: var(--surface); }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2px; background: var(--border-soft);
+    border-radius: var(--r); overflow: hidden;
+    border: 1px solid var(--border-soft);
+    margin-top: 3.5rem;
+  }
+  .stat-block {
+    background: var(--surface);
+    padding: 2.5rem 2rem;
+    text-align: center;
+    transition: background 0.3s;
+  }
+  .stat-block:hover { background: var(--accent-light); }
+  .stat-block-num {
+    font-family: var(--font-display);
+    font-size: 3rem; font-weight: 800;
+    color: var(--accent); line-height: 1;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.04em;
+  }
+  .stat-block-label { font-size: 0.9rem; color: var(--ink-soft); line-height: 1.5; }
+
+  /* ── CTA ── */
+  .cta-section {
+    background: var(--bg);
+    text-align: center;
+    padding: clamp(5rem,10vw,9rem) clamp(1.5rem,5vw,5rem);
+  }
+  .cta-inner {
+    max-width: 700px; margin: 0 auto;
+    background: var(--ink);
+    border-radius: 28px; padding: clamp(3rem,6vw,5rem) clamp(2rem,5vw,4rem);
+    position: relative; overflow: hidden;
+  }
+  .cta-inner::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 30% 50%, rgba(26,60,248,0.35), transparent 70%);
+    pointer-events: none;
+  }
+  .cta-inner h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    font-weight: 800; color: #fff;
+    margin-bottom: 1rem; position: relative; z-index: 1;
+    letter-spacing: -0.02em; line-height: 1.2;
+  }
+  .cta-inner p {
+    color: rgba(255,255,255,0.6); font-size: 1rem;
+    line-height: 1.75; margin-bottom: 2.5rem;
+    font-weight: 300; position: relative; z-index: 1;
+  }
+  .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+  .cta-btn-white {
+    background: #fff; color: var(--accent);
+    padding: 0.9rem 2rem; border-radius: var(--r-pill);
+    font-weight: 700; font-size: 0.95rem;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .cta-btn-white:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
+  .cta-btn-ghost {
+    background: rgba(255,255,255,0.1); color: #fff;
+    padding: 0.9rem 2rem; border-radius: var(--r-pill);
+    font-weight: 500; font-size: 0.95rem;
+    text-decoration: none; border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s, transform 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .cta-btn-ghost:hover { background: rgba(255,255,255,0.18); transform: translateY(-2px); }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--ink);
+    padding: 3rem clamp(1.5rem,5vw,5rem) 2rem;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.85rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: gap; gap: 1rem;
+  }
+  .footer-logo {
+    font-family: var(--font-display);
+    font-weight: 800; font-size: 1.1rem; color: #fff;
+    display: flex; align-items: center; gap: 8px; text-decoration: none;
+  }
+  .footer-logo-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .footer-logo-icon svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .footer-tagline { color: rgba(255,255,255,0.3); font-size: 0.8rem; margin-top: 2px; }
+  .footer-links { display: flex; gap: 2rem; }
+  .footer-links a { color: rgba(255,255,255,0.4); text-decoration: none; transition: color 0.2s; font-size: 0.82rem; }
+  .footer-links a:hover { color: #fff; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .hero, .app-inner { grid-template-columns: 1fr; }
+    .hero-visual { order: -1; }
+    nav .nav-links { display: none; }
+    .steps { grid-template-columns: 1fr; }
+    .step-arrow { display: none; }
+    #database .section-inner > div { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 600px) {
+    .stat-cards { grid-template-columns: 1fr; }
+    .stat-card.wide { grid-column: span 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+    </div>
+    ScamWatch
+  </a>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="existingscams.html">Scam Database</a></li>
+    <li><a href="#compare">Compare</a></li>
+    <li><a href="#app">Mobile App</a></li>
+  </ul>
+  <div style="display:flex;align-items:center;gap:0.75rem;">
+    <button onclick="openAdminLogin()" style="display:flex;align-items:center;gap:6px;background:transparent;border:1.5px solid var(--border-soft);border-radius:var(--r-pill);padding:0.45rem 1rem;font-family:var(--font-body);font-size:0.82rem;font-weight:600;color:var(--ink-muted);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';this.style.background='var(--accent-light)'" onmouseout="this.style.borderColor='var(--border-soft)';this.style.color='var(--ink-muted)';this.style.background='transparent'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Admin
+    </button>
+    <a href="reportscam.html" class="nav-cta">Report a Scam →</a>
+  </div>
+</nav>
+
+<!-- ── ADMIN LOGIN MODAL ── -->
+<div id="admin-modal-overlay" onclick="handleOverlayClick(event)" style="position:fixed;inset:0;background:rgba(10,15,30,0.65);backdrop-filter:blur(10px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:2rem;opacity:0;pointer-events:none;transition:opacity 0.25s;">
+  <div id="admin-modal" style="background:var(--surface);border-radius:20px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(10,15,30,0.4);border:1px solid var(--border-soft);transform:translateY(20px) scale(0.97);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden;">
+
+    <!-- Modal Header -->
+    <div style="background:var(--ink);padding:2rem 2rem 1.5rem;position:relative;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 20% 50%,rgba(26,60,248,0.35),transparent 70%);pointer-events:none;"></div>
+      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:12px;margin-bottom:1rem;">
+        <div style="width:40px;height:40px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-weight:800;font-size:1.15rem;color:#fff;">Admin Login</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">ScamWatch Control Panel</div>
+        </div>
+        <button onclick="closeAdminLogin()" style="margin-left:auto;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.6);transition:all 0.2s;" onmouseover="this.style.background='rgba(248,81,73,0.3)';this.style.color='#f88'" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='rgba(255,255,255,0.6)'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <!-- Hint badge -->
+      <div style="position:relative;z-index:1;background:rgba(0,193,124,0.15);border:1px solid rgba(0,193,124,0.3);border-radius:10px;padding:0.75rem 1rem;font-size:0.78rem;color:#4dffc4;display:flex;align-items:flex-start;gap:8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div><strong>Demo credentials</strong><br>Username: <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;">admin</code> &nbsp; Password: <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;">admin123</code></div>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div style="padding:1.75rem 2rem 2rem;">
+      <div id="admin-login-error" style="display:none;background:var(--red-light);border:1px solid rgba(230,57,70,0.25);border-radius:10px;padding:0.75rem 1rem;font-size:0.82rem;color:var(--red);margin-bottom:1.25rem;display:none;align-items:center;gap:8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Incorrect username or password. Please try again.
+      </div>
+
+      <div style="margin-bottom:1.25rem;">
+        <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:7px;">Username</label>
+        <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--border-soft);border-radius:10px;padding:0.7rem 1rem;transition:border-color 0.2s;" id="user-field-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="admin-username" placeholder="Enter username" autocomplete="username" style="background:transparent;border:none;outline:none;font-family:var(--font-body);font-size:0.92rem;color:var(--ink);width:100%;" onfocus="document.getElementById('user-field-wrap').style.borderColor='var(--accent)'" onblur="document.getElementById('user-field-wrap').style.borderColor='var(--border-soft)'" onkeydown="if(event.key==='Enter')document.getElementById('admin-password').focus()">
+        </div>
+      </div>
+
+      <div style="margin-bottom:1.75rem;">
+        <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:7px;">Password</label>
+        <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--border-soft);border-radius:10px;padding:0.7rem 1rem;transition:border-color 0.2s;" id="pass-field-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input type="password" id="admin-password" placeholder="Enter password" autocomplete="current-password" style="background:transparent;border:none;outline:none;font-family:var(--font-body);font-size:0.92rem;color:var(--ink);width:100%;flex:1;" onfocus="document.getElementById('pass-field-wrap').style.borderColor='var(--accent)'" onblur="document.getElementById('pass-field-wrap').style.borderColor='var(--border-soft)'" onkeydown="if(event.key==='Enter')attemptLogin()">
+          <button onclick="togglePassword()" id="pw-toggle" style="background:transparent;border:none;cursor:pointer;color:var(--ink-muted);padding:0;display:flex;align-items:center;" title="Show/hide password">
+            <svg id="pw-eye" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button onclick="attemptLogin()" id="login-btn" style="width:100%;padding:0.85rem;border-radius:var(--r-pill);background:var(--accent);color:#fff;border:none;font-family:var(--font-display);font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 24px rgba(26,60,248,0.35)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span id="login-btn-text">Sign In to Dashboard</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAdminLogin() {
+  const overlay = document.getElementById('admin-modal-overlay');
+  overlay.style.opacity = '1';
+  overlay.style.pointerEvents = 'all';
+  document.getElementById('admin-modal').style.transform = 'translateY(0) scale(1)';
+  setTimeout(() => document.getElementById('admin-username').focus(), 100);
+  document.getElementById('admin-login-error').style.display = 'none';
+  document.getElementById('admin-username').value = '';
+  document.getElementById('admin-password').value = '';
+}
+function closeAdminLogin() {
+  const overlay = document.getElementById('admin-modal-overlay');
+  overlay.style.opacity = '0';
+  overlay.style.pointerEvents = 'none';
+  document.getElementById('admin-modal').style.transform = 'translateY(20px) scale(0.97)';
+}
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('admin-modal-overlay')) closeAdminLogin();
+}
+function togglePassword() {
+  const pw = document.getElementById('admin-password');
+  pw.type = pw.type === 'password' ? 'text' : 'password';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdminLogin(); });
+
+function attemptLogin() {
+  const user = document.getElementById('admin-username').value.trim();
+  const pass = document.getElementById('admin-password').value;
+  const errBox = document.getElementById('admin-login-error');
+  const btn = document.getElementById('login-btn');
+  const btnText = document.getElementById('login-btn-text');
+
+  // Show loading state
+  btn.disabled = true;
+  btn.style.opacity = '0.8';
+  btnText.textContent = 'Signing in…';
+
+  setTimeout(() => {
+    // Fake credentials check
+    if (user === 'admin' && pass === 'admin123') {
+      btnText.textContent = '✓ Redirecting…';
+      btn.style.background = '#00c17c';
+      setTimeout(() => { window.location.href = 'admindashboard.html'; }, 700);
+    } else {
+      errBox.style.display = 'flex';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btnText.textContent = 'Sign In to Dashboard';
+      // Shake animation
+      const modal = document.getElementById('admin-modal');
+      modal.style.animation = 'shake 0.4s ease';
+      setTimeout(() => modal.style.animation = '', 400);
+      document.getElementById('admin-password').value = '';
+      document.getElementById('admin-password').focus();
+    }
+  }, 900);
+}
+</script>
+
+<style>
+@keyframes shake {
+  0%,100%{transform:translateX(0) scale(1)}
+  20%{transform:translateX(-8px) scale(1)}
+  40%{transform:translateX(8px) scale(1)}
+  60%{transform:translateX(-5px) scale(1)}
+  80%{transform:translateX(5px) scale(1)}
+}
+</style>
+
+<!-- HERO -->
+<section style="padding: 0;">
+  <div class="hero">
+    <div class="hero-content">
+      <div class="hero-badge">
+        <div class="hero-badge-dot"></div>
+        Live Threat Intelligence
+      </div>
+      <h1>Fight Scams. <span class="highlight">Together.</span> For Free.</h1>
+      <p class="hero-desc">ScamWatch is Singapore's crowdsourced scam intelligence platform. Report scams, protect your community, and scan suspicious links — all powered by real people, in real time.</p>
+      <div class="hero-actions">
+        <a href="reportscam.html" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+          Report a Scam
+        </a>
+        <a href="#how" class="btn-secondary">
+          How it works
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-card-label"><div class="dot-green"></div> Scams Reported</div>
+          <div class="stat-card-num">28,401</div>
+          <div class="stat-card-sub">+312 this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label"><div class="dot-red"></div> Active Threats</div>
+          <div class="stat-card-num">1,847</div>
+          <div class="stat-card-sub">Updated live</div>
+        </div>
+        <div class="stat-card wide">
+          <div class="stat-card-label"><div class="dot-green"></div> Community Contributors</div>
+          <div class="stat-card-num">94,210</div>
+          <div class="stat-card-sub">Across Singapore — helping protect one another</div>
+        </div>
+      </div>
+
+      <div class="activity-feed">
+        <div class="feed-header">
+          <div style="width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite;"></div>
+          Live Activity Feed
+        </div>
+        <div class="feed-item" style="animation-delay:0.1s">
+          <div class="feed-icon red">🚨</div>
+          <div class="feed-text">
+            <div class="feed-title">Phishing SMS — OCBC impersonation flagged</div>
+            <div class="feed-time">2 minutes ago · Tampines</div>
+          </div>
+        </div>
+        <div class="feed-item" style="animation-delay:0.25s">
+          <div class="feed-icon amber">⚠️</div>
+          <div class="feed-text">
+            <div class="feed-title">Suspicious job offer link blocked by scanner</div>
+            <div class="feed-time">11 minutes ago · Jurong</div>
+          </div>
+        </div>
+        <div class="feed-item" style="animation-delay:0.4s">
+          <div class="feed-icon green">✓</div>
+          <div class="feed-text">
+            <div class="feed-title">Investment scam domain added to blocklist</div>
+            <div class="feed-time">28 minutes ago · Database updated</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-bg" id="how">
+  <div class="section-inner">
+    <div class="section-label">How It Works</div>
+    <h2 class="section-heading">From report to protection in minutes</h2>
+    <p class="section-sub">Our community-driven pipeline turns individual reports into real-time protection for everyone on the platform.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </div>
+        <h3>You report a scam</h3>
+        <p>Submit a scam encounter — SMS, call, email, or link — directly via our web portal or mobile app in under 60 seconds.</p>
+        <div class="step-arrow" style="display:none"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <h3>AI + community validation</h3>
+        <p>Reports are cross-referenced with existing data and verified by our automated AI pipeline and trusted community moderators.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+        </div>
+        <h3>Database updated instantly</h3>
+        <p>Verified threats are pushed to our central scam database — URLs, numbers, patterns — accessible across all platform features.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24"><path d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-5 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"/></svg>
+        </div>
+        <h3>Everyone is protected</h3>
+        <p>The scanner app, Telegram bot, and browser extension immediately warn other users — turning one report into community-wide protection.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES / WHY CHOOSE US -->
+<section class="features-bg" id="features">
+  <div class="section-inner">
+    <div class="section-label">Why Choose Us</div>
+    <h2 class="section-heading">Everything you need to stay safe, free forever</h2>
+    <p class="section-sub">Unlike fragmented government portals or expensive enterprise tools, ScamShield puts the full power of collective intelligence in your hands — at no cost.</p>
+
+    <div class="features-grid">
+      <div class="feature-card blue">
+        <div class="feat-icon blue">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 7a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>
+        </div>
+        <h3>Crowdsourced Intelligence</h3>
+        <p>Thousands of community members actively report scams, creating a living, breathing threat database that no single organisation could build alone. The more people report, the smarter it gets.</p>
+        <span class="badge new">Community-powered</span>
+      </div>
+
+      <div class="feature-card green">
+        <div class="feat-icon green">
+          <svg viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z"/></svg>
+        </div>
+        <h3>Built-In Link & Number Scanner</h3>
+        <p>Paste any URL, phone number, or text snippet into our scanner and get an instant risk assessment drawn from our live database. No sign-up required.</p>
+        <span class="badge free">100% Free</span>
+      </div>
+
+      <div class="feature-card amber">
+        <div class="feat-icon amber">
+          <svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h3>Real-Time Database Updates</h3>
+        <p>Our threat database is refreshed continuously as new scams are reported and verified. You're always protected against the latest tactics — not last month's threats.</p>
+        <span class="badge realtime">Live updates</span>
+      </div>
+
+      <div class="feature-card blue">
+        <div class="feat-icon blue">
+          <svg viewBox="0 0 24 24"><path d="M12 18h.01M8 21h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2zm0-9V6a4 4 0 0 1 8 0v3"/></svg>
+        </div>
+        <h3>Telegram Bot Integration</h3>
+        <p>Report scams and check numbers instantly via our Telegram bot without ever leaving your chat app. Fast, familiar, and accessible to every Singaporean.</p>
+        <span class="badge new">New</span>
+      </div>
+
+      <div class="feature-card red">
+        <div class="feat-icon red">
+          <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+        </div>
+        <h3>Chrome Extension</h3>
+        <p>Browse safely with automatic warnings when you visit flagged websites. ScamShield works silently in the background, alerting you before you click on anything dangerous.</p>
+        <span class="badge free">Free Extension</span>
+      </div>
+
+      <div class="feature-card green">
+        <div class="feat-icon green">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Anonymous Reporting</h3>
+        <p>Victims often fear stigma. Every report on ScamShield is fully anonymous — protecting your privacy while still contributing vital intelligence to the community.</p>
+        <span class="badge free">Privacy-first</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCAM DATABASE PREVIEW -->
+<section style="background: var(--ink); padding: clamp(4rem,8vw,7rem) clamp(1.5rem,5vw,5rem);" id="database">
+  <div class="section-inner">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;">
+      <div>
+        <div style="display:inline-flex;align-items:center;gap:8px;font-size:0.75rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:1rem;">
+          <span style="display:inline-block;width:20px;height:2px;background:rgba(255,255,255,0.4);border-radius:1px;"></span>
+          Live Intelligence
+        </div>
+        <h2 style="font-family:var(--font-display);font-size:clamp(2rem,4vw,2.8rem);font-weight:800;line-height:1.15;letter-spacing:-0.02em;color:#fff;margin-bottom:1rem;">Browse the Scam Database</h2>
+        <p style="font-size:1.05rem;color:rgba(255,255,255,0.55);line-height:1.75;max-width:480px;font-weight:300;margin-bottom:2rem;">Every verified scam report is publicly accessible. Search by type, platform, or keyword — and see exactly what threats are circulating in Singapore right now.</p>
+        <div style="display:flex;flex-direction:column;gap:0.9rem;margin-bottom:2rem;">
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(26,60,248,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6e9dff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </div>
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:#fff;margin-bottom:2px;">Search &amp; filter scams</div>
+              <div style="font-size:0.78rem;color:rgba(255,255,255,0.45);">By type, severity, platform, or keyword</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,193,124,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4dffc4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:#fff;margin-bottom:2px;">Verified by the community</div>
+              <div style="font-size:0.78rem;color:rgba(255,255,255,0.45);">Every entry is cross-checked before going live</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,165,36,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5a524" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:#fff;margin-bottom:2px;">Updated in real time</div>
+              <div style="font-size:0.78rem;color:rgba(255,255,255,0.45);">New reports reflect within minutes</div>
+            </div>
+          </div>
+        </div>
+        <a href="existingscams.html" style="display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#fff;padding:0.9rem 2rem;border-radius:var(--r-pill);font-weight:700;font-size:0.95rem;text-decoration:none;transition:transform 0.2s,box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 30px rgba(26,60,248,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          Browse Scam Database
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+        </a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px;transition:background 0.2s;cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+          <div style="width:40px;height:40px;border-radius:11px;background:#fff0f1;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">🎣</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px;">
+              <span style="font-size:0.88rem;font-weight:700;color:#fff;">Fake OCBC Bank Login Page</span>
+              <span style="font-size:0.65rem;font-weight:700;background:#fff0f1;color:#e63946;padding:2px 8px;border-radius:999px;white-space:nowrap;">HIGH</span>
+            </div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:4px;">🔗 ocbc-verify-login.xyz</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);">142 reports · SMS · Verified ✓</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px;transition:background 0.2s;cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+          <div style="width:40px;height:40px;border-radius:11px;background:#fff8eb;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">💼</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px;">
+              <span style="font-size:0.88rem;font-weight:700;color:#fff;">Part-time "Like &amp; Follow" Job Scam</span>
+              <span style="font-size:0.65rem;font-weight:700;background:#fff0f1;color:#e63946;padding:2px 8px;border-radius:999px;white-space:nowrap;">HIGH</span>
+            </div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:4px;">📱 +65 8123 4567</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);">89 reports · WhatsApp · Verified ✓</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px;transition:background 0.2s;cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+          <div style="width:40px;height:40px;border-radius:11px;background:#f4e8ff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">🎭</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px;">
+              <span style="font-size:0.88rem;font-weight:700;color:#fff;">SingPass Account Suspension SMS</span>
+              <span style="font-size:0.65rem;font-weight:700;background:#fff0f1;color:#e63946;padding:2px 8px;border-radius:999px;white-space:nowrap;">HIGH</span>
+            </div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:4px;">🔗 singpass-secure-verify.net</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);">211 reports · SMS · Verified ✓</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px;transition:background 0.2s;cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+          <div style="width:40px;height:40px;border-radius:11px;background:#e0fff3;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">📈</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px;">
+              <span style="font-size:0.88rem;font-weight:700;color:#fff;">Crypto Investment Telegram Group</span>
+              <span style="font-size:0.65rem;font-weight:700;background:#fff0f1;color:#e63946;padding:2px 8px;border-radius:999px;white-space:nowrap;">HIGH</span>
+            </div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:4px;">Guaranteed 30% monthly returns</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);">67 reports · Telegram · Verified ✓</div>
+          </div>
+        </div>
+        <a href="existingscams.html" style="display:block;text-align:center;padding:0.85rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.5);text-decoration:none;font-size:0.82rem;font-weight:500;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='';this.style.color='rgba(255,255,255,0.5)'">
+          View all 28,401 reports →
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="compare-bg" id="compare">
+  <div class="section-inner">
+    <div class="section-label">Compare</div>
+    <h2 class="section-heading">ScamWatch vs the alternatives</h2>
+    <p class="section-sub">See how we stack up against existing options for scam reporting and protection in Singapore.</p>
+
+    <div class="compare-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:35%">Feature</th>
+            <th class="highlight-col">ScamWatch ✦</th>
+            <th>SPF ScamAlert</th>
+            <th>Bank Portals</th>
+            <th>Generic AV</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature-name">Crowdsourced reporting</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Real-time link scanner</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="partial">Paid only</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Mobile app</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="partial">Varies</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Telegram bot</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Browser extension</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="partial">Paid only</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Anonymous reporting</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Community-driven database</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="partial">Limited</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">Completely free</td>
+            <td class="highlight-col"><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- APP PROMO -->
+<section class="app-section" id="app">
+  <div class="app-inner section-inner">
+    <div>
+      <div class="section-label">Mobile App</div>
+      <h2 class="section-heading">Protection in your pocket</h2>
+      <p class="section-sub">The ScamShield mobile app brings the full power of our platform everywhere you go — report scams, scan numbers, and stay informed on the move.</p>
+
+      <div class="app-features">
+        <div class="app-feature">
+          <div class="app-feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/></svg>
+          </div>
+          <div class="app-feat-text">
+            <h4>Instant scam alerts</h4>
+            <p>Get push notifications when a new scam matching your region or profile is reported.</p>
+          </div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+          </div>
+          <div class="app-feat-text">
+            <h4>Scan with your camera</h4>
+            <p>Point your phone at a QR code or screenshot to instantly check it against our database.</p>
+          </div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+          </div>
+          <div class="app-feat-text">
+            <h4>One-tap report</h4>
+            <p>Report a scam call or SMS in under 10 seconds — directly from your notification shade.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="store-buttons">
+        <a href="#" class="store-btn">
+          <svg viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          <div class="store-btn-text">
+            <small>Download on the</small>
+            <strong>App Store</strong>
+          </div>
+        </a>
+        <a href="#" class="store-btn">
+          <svg viewBox="0 0 24 24"><path d="M3.18 23.77c.37.21.8.22 1.2.04l12.19-6.83-2.65-2.65-10.74 9.44zm16.54-11.52-3.31-1.85-2.94 2.59 2.94 2.59 3.33-1.87a1.49 1.49 0 0 0 0-2.46zM2.1 1.24A1.5 1.5 0 0 0 1.5 2.5v19.01c0 .45.19.84.5 1.1L13.88 12 2.1 1.24zm5.08 5.65L16.38 12l-9.2 5.11L7.18 6.89z"/></svg>
+          <div class="store-btn-text">
+            <small>Get it on</small>
+            <strong>Google Play</strong>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Phone Mockup -->
+    <div class="phone-mockup">
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="phone-header">
+            <div class="phone-header-dot"></div>
+            ScamShield
+          </div>
+
+          <div class="scan-card">
+            <div style="flex:1">
+              <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);margin-bottom:4px;">SCAN RESULT</div>
+              <div class="scan-domain">bit.ly/obc-reward-sg</div>
+            </div>
+            <div class="scan-pill">SCAM</div>
+          </div>
+
+          <div class="phone-stat-row">
+            <div class="phone-stat">
+              <div class="phone-stat-num" style="color:#00c17c;">1,847</div>
+              <div class="phone-stat-label">Blocked Today</div>
+            </div>
+            <div class="phone-stat">
+              <div class="phone-stat-num">94K</div>
+              <div class="phone-stat-label">Reporters</div>
+            </div>
+            <div class="phone-stat">
+              <div class="phone-stat-num" style="color:#f5a524;">28K</div>
+              <div class="phone-stat-label">Reports</div>
+            </div>
+          </div>
+
+          <div style="font-size:0.65rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.07em;padding: 4px 0 2px;">Recent alerts near you</div>
+          <div class="mini-feed">
+            <div class="mini-feed-item">
+              <div class="mini-feed-dot" style="background:#e63946;"></div>
+              <div class="mini-feed-text">Fake SingPass SMS with link</div>
+              <div class="mini-feed-time">3m</div>
+            </div>
+            <div class="mini-feed-item">
+              <div class="mini-feed-dot" style="background:#f5a524;"></div>
+              <div class="mini-feed-text">Job scam WhatsApp number</div>
+              <div class="mini-feed-time">14m</div>
+            </div>
+            <div class="mini-feed-item">
+              <div class="mini-feed-dot" style="background:#e63946;"></div>
+              <div class="mini-feed-text">Phishing email — DHL impersonation</div>
+              <div class="mini-feed-time">31m</div>
+            </div>
+          </div>
+
+          <div class="phone-report-btn">
+            <svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            Report a Scam
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats-section">
+  <div class="section-inner">
+    <div style="text-align:center;">
+      <div class="section-label" style="justify-content:center;">By the numbers</div>
+      <h2 class="section-heading" style="text-align:center;">Making Singapore safer, together</h2>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-block">
+        <div class="stat-block-num">28K+</div>
+        <div class="stat-block-label">Scam reports<br>submitted by the community</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-block-num">94K</div>
+        <div class="stat-block-label">Active reporters<br>across Singapore</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-block-num">&lt;5min</div>
+        <div class="stat-block-label">Average time from<br>report to database update</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-block-num">100%</div>
+        <div class="stat-block-label">Free — always,<br>for everyone</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2>Start protecting yourself and your community today</h2>
+    <p>Join tens of thousands of Singaporeans using ScamWatch to fight scams together. Report, scan, and stay safe — for free.</p>
+    <div class="cta-buttons">
+      <a href="reportscam.html" class="cta-btn-white">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+        Report a Scam
+      </a>
+      <a href="existingscams.html" class="cta-btn-ghost">
+        Browse Scam Database
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <a href="index.html" class="footer-logo">
+      <div class="footer-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+      </div>
+      ScamWatch
+    </a>
+    <div class="footer-tagline">Crowdsourced Scam Intelligence Platform · Temasek Polytechnic CDF AY24/25</div>
+  </div>
+  <div class="footer-links">
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Use</a>
+    <a href="#">Contact</a>
+    <a href="#">API</a>
+    <a href="#" onclick="openAdminLogin();return false;" style="opacity:0.5;">Admin</a>
+  </div>
+</footer>
+
+</body>
+</html>

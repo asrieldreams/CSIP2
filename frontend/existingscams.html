@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScamWatch — Scam Database</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink: #0a0f1e; --ink-soft: #3a4060; --ink-muted: #6b7394;
+  --bg: #f4f6ff; --surface: #ffffff; --surface2: #eef1ff;
+  --accent: #1a3cf8; --accent-light: #e8edff;
+  --accent2: #00c17c; --accent2-light: #e0fff3;
+  --warn: #f5a524; --warn-light: #fff8eb;
+  --red: #e63946; --red-light: #fff0f1;
+  --border: rgba(26,60,248,0.12); --border-soft: rgba(10,15,30,0.08);
+  --shadow: 0 4px 24px rgba(26,60,248,0.09);
+  --shadow-lg: 0 12px 48px rgba(26,60,248,0.15);
+  --r: 16px; --r-sm: 10px; --r-pill: 999px;
+  --font-display: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+}
+html { scroll-behavior: smooth; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--ink); min-height: 100vh; overflow-x: hidden; }
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(244,246,255,0.88); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0 clamp(1.5rem,5vw,5rem);
+  display: flex; align-items: center; justify-content: space-between; height: 64px;
+}
+.nav-logo { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 10px; }
+.nav-logo-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); display: flex; align-items: center; justify-content: center; }
+.nav-logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.nav-links { display: flex; gap: 1.5rem; align-items: center; list-style: none; }
+.nav-links a { font-size: 0.875rem; color: var(--ink-soft); text-decoration: none; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover, .nav-links a.active { color: var(--accent); }
+.nav-cta { background: var(--accent); color: #fff; padding: 0.5rem 1.25rem; border-radius: var(--r-pill); font-size: 0.875rem; font-weight: 600; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; }
+.nav-cta:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+/* ── PAGE HEADER ── */
+.page-header { background: var(--ink); padding: clamp(3rem,6vw,5rem) clamp(1.5rem,5vw,5rem) clamp(2.5rem,5vw,4rem); position: relative; overflow: hidden; }
+.page-header::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 80% at 80% 40%, rgba(26,60,248,0.3), transparent 65%); pointer-events: none; }
+.page-header-inner { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+.page-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
+.page-header-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 1rem; }
+.page-header-label::before { content: ''; width: 20px; height: 2px; background: rgba(255,255,255,0.35); border-radius: 1px; }
+.page-header h1 { font-family: var(--font-display); font-size: clamp(2rem,4vw,3rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; color: #fff; margin-bottom: 0.75rem; }
+.page-header-desc { font-size: 1rem; color: rgba(255,255,255,0.5); line-height: 1.75; font-weight: 300; max-width: 540px; }
+.header-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 2rem; }
+.header-stat { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--r-sm); padding: 0.9rem 1.25rem; min-width: 120px; }
+.header-stat-num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1; margin-bottom: 3px; }
+.header-stat-label { font-size: 0.72rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.07em; }
+.live-dot { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,193,124,0.15); border: 1px solid rgba(0,193,124,0.3); color: #4dffc4; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: var(--r-pill); }
+.live-dot-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 1.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }
+
+/* ── TOOLBAR ── */
+.toolbar { background: var(--surface); border-bottom: 1px solid var(--border-soft); padding: 1rem clamp(1.5rem,5vw,5rem); position: sticky; top: 64px; z-index: 90; box-shadow: 0 2px 16px rgba(10,15,30,0.05); }
+.toolbar-inner { max-width: 1200px; margin: 0 auto; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 400px; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; fill: none; stroke: var(--ink-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+#search-input { width: 100%; background: var(--bg); border: 1.5px solid var(--border-soft); border-radius: var(--r-pill); padding: 0.6rem 1rem 0.6rem 2.5rem; font-family: var(--font-body); font-size: 0.9rem; color: var(--ink); outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,60,248,0.1); background: var(--surface); }
+#search-input::placeholder { color: var(--ink-muted); }
+.filter-wrap { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+select.filter-select { background: var(--bg); border: 1.5px solid var(--border-soft); border-radius: var(--r-pill); padding: 0.55rem 2rem 0.55rem 0.9rem; font-family: var(--font-body); font-size: 0.82rem; color: var(--ink-soft); outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7394' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; transition: border-color 0.2s; }
+select.filter-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,60,248,0.1); }
+.view-toggle { display: flex; background: var(--bg); border: 1.5px solid var(--border-soft); border-radius: var(--r-pill); overflow: hidden; margin-left: auto; }
+.view-btn { padding: 0.5rem 0.85rem; border: none; background: transparent; cursor: pointer; color: var(--ink-muted); display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.view-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.view-btn.active { background: var(--accent); color: #fff; }
+.results-count { font-size: 0.82rem; color: var(--ink-muted); white-space: nowrap; }
+
+/* ── MAIN LAYOUT ── */
+.main-layout { max-width: 1200px; margin: 0 auto; padding: 2rem clamp(1.5rem,5vw,5rem) 5rem; display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: start; }
+
+/* ── SIDEBAR FILTERS ── */
+.filter-sidebar { position: sticky; top: 132px; }
+.filter-section { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border-soft); overflow: hidden; margin-bottom: 1rem; }
+.filter-section-title { padding: 1rem 1.25rem 0.75rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); border-bottom: 1px solid var(--border-soft); }
+.filter-section-body { padding: 0.75rem 1.25rem 1rem; }
+.filter-tag-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-tag { padding: 5px 12px; border-radius: var(--r-pill); border: 1.5px solid var(--border-soft); background: var(--bg); font-size: 0.75rem; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.filter-tag:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.filter-tag.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.filter-tag.red.active { border-color: var(--red); color: var(--red); background: var(--red-light); }
+.filter-tag.amber.active { border-color: var(--warn); color: var(--warn); background: var(--warn-light); }
+.filter-tag.green.active { border-color: var(--accent2); color: var(--accent2); background: var(--accent2-light); }
+.filter-range { display: flex; flex-direction: column; gap: 8px; }
+.filter-range-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--ink-muted); }
+.clear-filters { width: 100%; padding: 0.6rem; border: 1.5px solid var(--border-soft); background: transparent; border-radius: var(--r-sm); font-family: var(--font-body); font-size: 0.82rem; color: var(--ink-soft); cursor: pointer; transition: all 0.2s; font-weight: 500; }
+.clear-filters:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+/* ── SCAM GRID ── */
+.scam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+.scam-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+/* ── SCAM CARD ── */
+.scam-card {
+  background: var(--surface); border-radius: var(--r); border: 1px solid var(--border-soft);
+  overflow: hidden; cursor: pointer; transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+  animation: fadeUp 0.35s ease both;
+}
+.scam-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--border); }
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.card-top { padding: 1.25rem 1.25rem 1rem; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 0.75rem; }
+.card-type-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+.card-badges { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+.badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: var(--r-pill); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.badge-high { background: var(--red-light); color: var(--red); }
+.badge-medium { background: var(--warn-light); color: var(--warn); }
+.badge-low { background: var(--accent2-light); color: var(--accent2); }
+.badge-new { background: var(--accent-light); color: var(--accent); }
+.badge-verified { background: var(--accent2-light); color: var(--accent2); }
+.badge-unverified { background: var(--surface2); color: var(--ink-muted); }
+.card-title { font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 0.4rem; line-height: 1.3; }
+.card-url { font-size: 0.75rem; color: var(--ink-muted); font-family: monospace; background: var(--bg); padding: 3px 8px; border-radius: 5px; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 0.5rem; }
+.card-desc { font-size: 0.83rem; color: var(--ink-soft); line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-bottom { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-soft); background: var(--bg); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-meta { display: flex; align-items: center; gap: 12px; font-size: 0.73rem; color: var(--ink-muted); }
+.card-meta-item { display: flex; align-items: center; gap: 5px; }
+.card-meta-item svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.card-platform { font-size: 0.72rem; font-weight: 600; color: var(--ink-muted); background: var(--surface2); padding: 3px 9px; border-radius: var(--r-pill); }
+
+/* ── LIST VIEW CARD ── */
+.scam-card.list-mode { display: flex; align-items: stretch; }
+.scam-card.list-mode .card-top { display: flex; align-items: center; gap: 1rem; flex: 1; padding: 1rem 1.25rem; }
+.scam-card.list-mode .card-header { flex-direction: row; align-items: center; gap: 12px; margin-bottom: 0; flex: 1; }
+.scam-card.list-mode .card-type-icon { width: 36px; height: 36px; font-size: 1rem; flex-shrink: 0; }
+.scam-card.list-mode .card-content { flex: 1; }
+.scam-card.list-mode .card-title { margin-bottom: 2px; font-size: 0.9rem; }
+.scam-card.list-mode .card-desc { -webkit-line-clamp: 1; font-size: 0.8rem; }
+.scam-card.list-mode .card-bottom { border-top: none; border-left: 1px solid var(--border-soft); background: transparent; flex-direction: column; align-items: flex-end; justify-content: center; padding: 1rem 1.25rem; min-width: 160px; gap: 6px; }
+.scam-card.list-mode .card-badges { flex-direction: row; align-items: center; }
+.scam-card.list-mode .card-url { display: none; }
+
+/* ── DETAIL MODAL ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(10,15,30,0.6); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 2rem; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal { background: var(--surface); border-radius: 20px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 80px rgba(10,15,30,0.35); transform: translateY(20px) scale(0.97); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+.modal-header { padding: 1.75rem 2rem 1.25rem; border-bottom: 1px solid var(--border-soft); display: flex; gap: 1rem; align-items: flex-start; }
+.modal-type-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
+.modal-header-text { flex: 1; }
+.modal-close { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--border-soft); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; }
+.modal-close:hover { background: var(--red-light); border-color: var(--red); }
+.modal-close svg { width: 16px; height: 16px; fill: none; stroke: var(--ink-soft); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.modal-close:hover svg { stroke: var(--red); }
+.modal-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--ink); margin-bottom: 6px; line-height: 1.2; }
+.modal-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.modal-body { padding: 1.5rem 2rem 2rem; }
+.modal-section { margin-bottom: 1.5rem; }
+.modal-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-soft); }
+.modal-desc { font-size: 0.92rem; color: var(--ink-soft); line-height: 1.75; }
+.modal-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.meta-item { background: var(--bg); border-radius: var(--r-sm); padding: 0.85rem 1rem; }
+.meta-key { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-muted); margin-bottom: 4px; }
+.meta-val { font-size: 0.88rem; font-weight: 600; color: var(--ink); word-break: break-all; }
+.meta-val.url { font-family: monospace; font-size: 0.8rem; color: var(--red); }
+.meta-val.green { color: var(--accent2); }
+.modal-warning { background: var(--red-light); border: 1px solid rgba(230,57,70,0.2); border-radius: var(--r-sm); padding: 1rem 1.25rem; font-size: 0.85rem; color: var(--red); line-height: 1.6; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 1.5rem; }
+.modal-warning svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; margin-top: 1px; }
+.report-count-bar { height: 8px; background: var(--bg); border-radius: var(--r-pill); overflow: hidden; margin-top: 6px; }
+.report-count-fill { height: 100%; background: var(--red); border-radius: var(--r-pill); transition: width 0.6s ease; }
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.timeline-item { display: flex; gap: 12px; padding: 0.6rem 0; border-bottom: 1px solid var(--border-soft); font-size: 0.82rem; }
+.timeline-item:last-child { border-bottom: none; }
+.timeline-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+.timeline-text { flex: 1; color: var(--ink-soft); line-height: 1.5; }
+.timeline-text strong { color: var(--ink); }
+.timeline-time { color: var(--ink-muted); font-size: 0.75rem; white-space: nowrap; }
+
+/* ── EMPTY / LOADING ── */
+.state-block { text-align: center; padding: 5rem 2rem; }
+.state-icon { font-size: 3rem; margin-bottom: 1rem; }
+.state-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--ink); margin-bottom: 0.5rem; }
+.state-sub { font-size: 0.9rem; color: var(--ink-muted); max-width: 360px; margin: 0 auto; line-height: 1.6; }
+.skeleton-card { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border-soft); padding: 1.25rem; }
+.skeleton { background: linear-gradient(90deg, var(--surface2) 25%, var(--bg) 50%, var(--surface2) 75%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 6px; }
+@keyframes shimmer { 0%{background-position:100% 50%} 100%{background-position:0% 50%} }
+
+/* ── PAGINATION ── */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2.5rem; }
+.page-btn { width: 38px; height: 38px; border-radius: var(--r-sm); border: 1.5px solid var(--border-soft); background: var(--surface); font-family: var(--font-body); font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.page-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.page-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--ink); color: #fff; padding: 0.75rem 1.5rem; border-radius: var(--r-pill); font-size: 0.85rem; font-weight: 500; z-index: 300; opacity: 0; transition: all 0.3s; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 960px) { .main-layout { grid-template-columns: 1fr; } .filter-sidebar { position: static; } }
+@media (max-width: 700px) { nav .nav-links { display: none; } .modal-meta-grid { grid-template-columns: 1fr; } .header-stats { gap: 0.75rem; } .modal { border-radius: 16px; } }
+@media (max-width: 480px) { .scam-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="introduction.html" class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+    </div>
+    ScamWatch
+  </a>
+  <ul class="nav-links">
+    <li><a href="introduction.html">Home</a></li>
+    <li><a href="#" class="active">Scam Database</a></li>
+    <li><a href="reportscam.html">Report</a></li>
+  </ul>
+  <a href="reportscam.html" class="nav-cta">Report a Scam →</a>
+</nav>
+
+<!-- PAGE HEADER -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <div class="page-header-top">
+      <div>
+        <div class="page-header-label">Live Intelligence</div>
+        <h1>Scam Database</h1>
+        <p class="page-header-desc">Browse all community-reported scams. Updated in real time as new reports are verified and added to the platform.</p>
+      </div>
+      <div class="live-dot" style="margin-top:1rem;">
+        <div class="live-dot-pulse"></div>
+        Database live
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="header-stat">
+        <div class="header-stat-num" id="stat-total">—</div>
+        <div class="header-stat-label">Total Reports</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-num" id="stat-today">—</div>
+        <div class="header-stat-label">Added Today</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-num" id="stat-high">—</div>
+        <div class="header-stat-label">High Severity</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-num" id="stat-verified">—</div>
+        <div class="header-stat-label">Verified</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-inner">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search-input" placeholder="Search scams, URLs, phone numbers…">
+    </div>
+    <div class="filter-wrap">
+      <select class="filter-select" id="sort-select">
+        <option value="date_desc">Newest First</option>
+        <option value="date_asc">Oldest First</option>
+        <option value="severity_desc">Highest Severity</option>
+        <option value="reports_desc">Most Reported</option>
+      </select>
+      <select class="filter-select" id="type-filter">
+        <option value="">All Types</option>
+        <option value="phishing">Phishing</option>
+        <option value="sms">Scam SMS/Call</option>
+        <option value="investment">Investment</option>
+        <option value="ecommerce">E-Commerce</option>
+        <option value="impersonation">Impersonation</option>
+        <option value="job">Job Scam</option>
+        <option value="love">Love Scam</option>
+        <option value="malware">Malware</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <span class="results-count" id="results-count"></span>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-grid" title="Grid view" onclick="setView('grid')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button class="view-btn" id="btn-list" title="List view" onclick="setView('list')">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-layout">
+  <!-- SIDEBAR FILTERS -->
+  <aside class="filter-sidebar">
+    <div class="filter-section">
+      <div class="filter-section-title">Severity</div>
+      <div class="filter-section-body">
+        <div class="filter-tag-group">
+          <span class="filter-tag red" data-filter="severity" data-val="high" onclick="toggleFilter(this)">🔴 High</span>
+          <span class="filter-tag amber" data-filter="severity" data-val="medium" onclick="toggleFilter(this)">🟡 Medium</span>
+          <span class="filter-tag green" data-filter="severity" data-val="low" onclick="toggleFilter(this)">🟢 Low</span>
+        </div>
+      </div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-section-title">Status</div>
+      <div class="filter-section-body">
+        <div class="filter-tag-group">
+          <span class="filter-tag" data-filter="status" data-val="verified" onclick="toggleFilter(this)">✓ Verified</span>
+          <span class="filter-tag" data-filter="status" data-val="unverified" onclick="toggleFilter(this)">⏳ Unverified</span>
+        </div>
+      </div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-section-title">Platform</div>
+      <div class="filter-section-body">
+        <div class="filter-tag-group">
+          <span class="filter-tag" data-filter="platform" data-val="WhatsApp" onclick="toggleFilter(this)">WhatsApp</span>
+          <span class="filter-tag" data-filter="platform" data-val="Telegram" onclick="toggleFilter(this)">Telegram</span>
+          <span class="filter-tag" data-filter="platform" data-val="SMS" onclick="toggleFilter(this)">SMS</span>
+          <span class="filter-tag" data-filter="platform" data-val="Email" onclick="toggleFilter(this)">Email</span>
+          <span class="filter-tag" data-filter="platform" data-val="Facebook" onclick="toggleFilter(this)">Facebook</span>
+          <span class="filter-tag" data-filter="platform" data-val="Carousell" onclick="toggleFilter(this)">Carousell</span>
+          <span class="filter-tag" data-filter="platform" data-val="Website" onclick="toggleFilter(this)">Website</span>
+        </div>
+      </div>
+    </div>
+    <button class="clear-filters" onclick="clearFilters()">✕ Clear all filters</button>
+  </aside>
+
+  <!-- CONTENT -->
+  <div>
+    <div id="scam-container" class="scam-grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-type-icon" id="modal-icon"></div>
+      <div class="modal-header-text">
+        <div class="modal-title" id="modal-title"></div>
+        <div class="modal-badges" id="modal-badges"></div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">
+        <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIGURATION — point this at your Flask API
+// ─────────────────────────────────────────────
+const API_BASE = '/api';  // Change to your Flask base URL e.g. 'http://localhost:5000/api'
+
+/*
+  EXPECTED API ENDPOINTS (Flask / MySQL backend):
+  
+  GET  /api/scams
+       Query params: page, per_page, search, type, severity, status, platform, sort
+       Returns: { data: [...], total: N, page: N, per_page: N, pages: N }
+
+  GET  /api/scams/:id
+       Returns: { ...full scam object with timeline[] }
+
+  GET  /api/scams/stats
+       Returns: { total: N, today: N, high_severity: N, verified: N }
+
+  MySQL table schema (suggested):
+  ─────────────────────────────────────────────
+  CREATE TABLE scams (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    report_id    VARCHAR(20)  NOT NULL UNIQUE,
+    type         VARCHAR(50)  NOT NULL,
+    title        VARCHAR(255) NOT NULL,
+    description  TEXT         NOT NULL,
+    url          VARCHAR(500),
+    phone_number VARCHAR(30),
+    platform     VARCHAR(50),
+    severity     ENUM('low','medium','high') DEFAULT 'medium',
+    status       ENUM('unverified','verified','flagged') DEFAULT 'unverified',
+    amount_lost  DECIMAL(10,2),
+    report_count INT          DEFAULT 1,
+    created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME     ON UPDATE CURRENT_TIMESTAMP
+  );
+  ─────────────────────────────────────────────
+*/
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let state = {
+  scams: [],
+  total: 0,
+  page: 1,
+  perPage: 12,
+  pages: 1,
+  view: 'grid',
+  search: '',
+  filters: { severity: null, status: null, platform: null },
+  sort: 'date_desc',
+  typeFilter: '',
+  loading: false
+};
+
+const TYPE_META = {
+  phishing:      { icon: '🎣', bg: '#fff0f1' },
+  sms:           { icon: '📱', bg: '#fff8eb' },
+  investment:    { icon: '📈', bg: '#e0fff3' },
+  ecommerce:     { icon: '🛒', bg: '#e8edff' },
+  impersonation: { icon: '🎭', bg: '#f4e8ff' },
+  job:           { icon: '💼', bg: '#fff8eb' },
+  love:          { icon: '💔', bg: '#fff0f1' },
+  malware:       { icon: '🦠', bg: '#fff0f1' },
+  other:         { icon: '❓', bg: '#eef1ff' }
+};
+
+// ─────────────────────────────────────────────
+// MOCK DATA — remove this block when backend is ready
+// ─────────────────────────────────────────────
+const MOCK_SCAMS = [
+  { id:1, report_id:'SS-2025-47201', type:'phishing', title:'Fake OCBC Bank Login Page', description:'A phishing SMS was sent impersonating OCBC Bank, directing victims to a fake login page hosted on a typosquatting domain. The page harvests internet banking credentials and OTPs before redirecting to the real OCBC website.', url:'ocbc-verify-login.xyz', phone_number:null, platform:'SMS', severity:'high', status:'verified', amount_lost:null, report_count:142, created_at:'2025-05-30T14:22:00' },
+  { id:2, report_id:'SS-2025-47198', type:'job', title:'Part-time "Like & Follow" Job Scam', description:'Victims are recruited via WhatsApp with offers of earning SGD 50–200/day for simple online tasks. After completing initial tasks and receiving small payments, they are asked to pay upfront "capital" to unlock higher-paying missions before the scammer disappears.', url:null, phone_number:'+65 8123 4567', platform:'WhatsApp', severity:'high', status:'verified', amount_lost:4500.00, report_count:89, created_at:'2025-05-30T11:05:00' },
+  { id:3, report_id:'SS-2025-47186', type:'impersonation', title:'SingPass Account Suspension SMS', description:'An SMS claiming to be from the Government Technology Agency (GovTech) states that your SingPass account has been suspended and requests immediate verification via a phishing link to steal credentials.', url:'singpass-secure-verify.net', phone_number:null, platform:'SMS', severity:'high', status:'verified', amount_lost:null, report_count:211, created_at:'2025-05-29T09:14:00' },
+  { id:4, report_id:'SS-2025-47170', type:'investment', title:'Crypto Investment Telegram Group', description:'A Telegram group promising guaranteed 30% monthly returns on cryptocurrency investments. Members are shown fabricated profit screenshots and encouraged to deposit via crypto wallets. Withdrawals are blocked with excuses about "tax clearance fees".', url:null, phone_number:null, platform:'Telegram', severity:'high', status:'verified', amount_lost:12000.00, report_count:67, created_at:'2025-05-28T16:40:00' },
+  { id:5, report_id:'SS-2025-47155', type:'ecommerce', title:'Fake Carousell Buyer Overpayment', description:'A buyer on Carousell sends a PayNow confirmation screenshot showing overpayment and asks the seller to refund the difference immediately. The original payment was never made, leaving the seller out of pocket.', url:null, phone_number:'+65 9876 5432', platform:'Carousell', severity:'medium', status:'verified', amount_lost:320.00, report_count:38, created_at:'2025-05-28T10:55:00' },
+  { id:6, report_id:'SS-2025-47140', type:'phishing', title:'DHL Parcel Customs Fee Email', description:'An email mimicking DHL branding informs recipients of a held parcel requiring urgent customs fee payment of SGD 2–5 via a fake payment page that captures credit card details.', url:'dhl-delivery-sg-customs.com', phone_number:null, platform:'Email', severity:'medium', status:'verified', amount_lost:null, report_count:55, created_at:'2025-05-27T15:30:00' },
+  { id:7, report_id:'SS-2025-47129', type:'love', title:'Romance Scam via Facebook Dating', description:'Scammer poses as an overseas engineer on Facebook Dating, builds a relationship over weeks, then claims to be stranded and requests emergency fund transfers. No repayment is ever made.', url:null, phone_number:null, platform:'Facebook', severity:'high', status:'unverified', amount_lost:8800.00, report_count:12, created_at:'2025-05-27T08:20:00' },
+  { id:8, report_id:'SS-2025-47110', type:'malware', title:'Fake SGDeals App APK', description:'A link circulating on Telegram promises exclusive SingTel deals and prompts users to sideload an APK file. The app requests SMS permissions and intercepts OTPs to take over banking apps.', url:'sgdeals-app.top/download', phone_number:null, platform:'Telegram', severity:'high', status:'verified', amount_lost:null, report_count:29, created_at:'2025-05-26T12:45:00' },
+  { id:9, report_id:'SS-2025-47098', type:'sms', title:'"You have a parcel" Phishing SMS', description:'A generic SMS claiming a parcel is awaiting collection, linking to a page that requests name, address, and credit card details for a small "redelivery fee" of SGD 0.50.', url:'parcels-sg-redeliver.com', phone_number:null, platform:'SMS', severity:'medium', status:'verified', amount_lost:null, report_count:183, created_at:'2025-05-25T17:10:00' },
+  { id:10, report_id:'SS-2025-47080', type:'impersonation', title:'SPF Police Impersonation Call', description:'Caller claims to be an SPF officer investigating a money laundering case involving the victim\'s bank account. Instructs victim to transfer funds to a "safe" government account to assist the investigation.', url:null, phone_number:'+65 6765 0000', platform:'Phone Call', severity:'high', status:'verified', amount_lost:25000.00, report_count:44, created_at:'2025-05-25T09:00:00' },
+  { id:11, report_id:'SS-2025-47055', type:'investment', title:'Foreign Exchange "Guaranteed Profits" Group', description:'WhatsApp group run by supposed forex trading experts showing fabricated daily profit charts. New members are asked to deposit a minimum of SGD 500 to join premium signals. Funds cannot be withdrawn.', url:null, phone_number:null, platform:'WhatsApp', severity:'medium', status:'unverified', amount_lost:1200.00, report_count:19, created_at:'2025-05-24T14:55:00' },
+  { id:12, report_id:'SS-2025-47030', type:'ecommerce', title:'Shopee Fake Seller – Electronics', description:'A Shopee seller with inflated fake reviews sells electronics at drastically reduced prices. After payment, orders are never shipped and the seller disappears after a few days.', url:null, phone_number:null, platform:'Lazada / Shopee', severity:'low', status:'verified', amount_lost:459.00, report_count:27, created_at:'2025-05-24T10:20:00' },
+];
+
+const MOCK_STATS = { total: 28401, today: 47, high_severity: 1847, verified: 24106 };
+
+// ─────────────────────────────────────────────
+// API CALLS — swap mock returns with real fetch()
+// ─────────────────────────────────────────────
+async function fetchScams() {
+  const params = new URLSearchParams({
+    page: state.page,
+    per_page: state.perPage,
+    sort: state.sort,
+    ...(state.search && { search: state.search }),
+    ...(state.typeFilter && { type: state.typeFilter }),
+    ...(state.filters.severity && { severity: state.filters.severity }),
+    ...(state.filters.status && { status: state.filters.status }),
+    ...(state.filters.platform && { platform: state.filters.platform }),
+  });
+
+  // ── MOCK: comment out try/catch and use real fetch when backend ready ──
+  try {
+    /* REAL FETCH (uncomment when backend ready):
+    const res = await fetch(`${API_BASE}/scams?${params}`);
+    if (!res.ok) throw new Error('API error');
+    return await res.json();
+    */
+
+    // MOCK LOGIC
+    await new Promise(r => setTimeout(r, 400));
+    let data = [...MOCK_SCAMS];
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      data = data.filter(s => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || (s.url && s.url.toLowerCase().includes(q)) || (s.phone_number && s.phone_number.includes(q)));
+    }
+    if (state.typeFilter) data = data.filter(s => s.type === state.typeFilter);
+    if (state.filters.severity) data = data.filter(s => s.severity === state.filters.severity);
+    if (state.filters.status) data = data.filter(s => s.status === state.filters.status);
+    if (state.filters.platform) data = data.filter(s => s.platform === state.filters.platform);
+    const sevMap = {high:3,medium:2,low:1};
+    if (state.sort === 'severity_desc') data.sort((a,b) => (sevMap[b.severity]||0)-(sevMap[a.severity]||0));
+    else if (state.sort === 'reports_desc') data.sort((a,b) => b.report_count - a.report_count);
+    else if (state.sort === 'date_asc') data.sort((a,b) => new Date(a.created_at)-new Date(b.created_at));
+    else data.sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
+    const total = data.length;
+    const start = (state.page - 1) * state.perPage;
+    return { data: data.slice(start, start + state.perPage), total, page: state.page, per_page: state.perPage, pages: Math.ceil(total / state.perPage) };
+  } catch(e) {
+    console.error('fetchScams error:', e);
+    return { data: [], total: 0, page: 1, per_page: state.perPage, pages: 0 };
+  }
+}
+
+async function fetchStats() {
+  try {
+    /* REAL FETCH:
+    const res = await fetch(`${API_BASE}/scams/stats`);
+    return await res.json();
+    */
+    await new Promise(r => setTimeout(r, 200));
+    return MOCK_STATS;
+  } catch(e) { return null; }
+}
+
+async function fetchScamById(id) {
+  try {
+    /* REAL FETCH:
+    const res = await fetch(`${API_BASE}/scams/${id}`);
+    return await res.json();
+    */
+    await new Promise(r => setTimeout(r, 150));
+    const s = MOCK_SCAMS.find(x => x.id === id);
+    return { ...s, timeline: [
+      { text: `<strong>Report submitted</strong> by community member`, time: formatDate(s.created_at) },
+      { text: `<strong>Automated scan</strong> flagged URL pattern as suspicious`, time: '5 min later' },
+      { text: `<strong>Verified</strong> by ScamWatch moderation team`, time: '2 hours later' },
+      { text: `<strong>Added to live database</strong> — community protected`, time: '2h 10m after report' },
+    ]};
+  } catch(e) { return null; }
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
+function formatDate(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  return d.toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function timeAgo(dt) {
+  const diff = (Date.now() - new Date(dt)) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function severityBadge(s) {
+  const map = { high: 'badge-high', medium: 'badge-medium', low: 'badge-low' };
+  return `<span class="badge ${map[s]||'badge-medium'}">${s||'unknown'}</span>`;
+}
+function statusBadge(s) {
+  return `<span class="badge ${s==='verified'?'badge-verified':'badge-unverified'}">${s==='verified'?'✓ Verified':'⏳ Pending'}</span>`;
+}
+
+function renderCard(scam, idx) {
+  const meta = TYPE_META[scam.type] || TYPE_META.other;
+  const isGrid = state.view === 'grid';
+  const delay = (idx % state.perPage) * 0.04;
+  const typeLabel = scam.type.charAt(0).toUpperCase() + scam.type.slice(1).replace(/([A-Z])/g,' $1');
+
+  if (isGrid) {
+    return `
+    <div class="scam-card" style="animation-delay:${delay}s" onclick="openModal(${scam.id})">
+      <div class="card-top">
+        <div class="card-header">
+          <div class="card-type-icon" style="background:${meta.bg}">${meta.icon}</div>
+          <div class="card-badges">
+            ${severityBadge(scam.severity)}
+            ${statusBadge(scam.status)}
+          </div>
+        </div>
+        <div class="card-title">${scam.title}</div>
+        ${scam.url ? `<div class="card-url">🔗 ${scam.url}</div>` : ''}
+        <div class="card-desc">${scam.description}</div>
+      </div>
+      <div class="card-bottom">
+        <div class="card-meta">
+          <div class="card-meta-item">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            ${scam.report_count}
+          </div>
+          <div class="card-meta-item">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${timeAgo(scam.created_at)}
+          </div>
+        </div>
+        ${scam.platform ? `<span class="card-platform">${scam.platform}</span>` : ''}
+      </div>
+    </div>`;
+  } else {
+    return `
+    <div class="scam-card list-mode" style="animation-delay:${delay}s" onclick="openModal(${scam.id})">
+      <div class="card-top">
+        <div class="card-header">
+          <div class="card-type-icon" style="background:${meta.bg};width:36px;height:36px;font-size:1rem;">${meta.icon}</div>
+          <div class="card-content">
+            <div class="card-title">${scam.title}</div>
+            <div class="card-desc">${scam.description}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-bottom">
+        <div class="card-badges">${severityBadge(scam.severity)} ${statusBadge(scam.status)}</div>
+        <div class="card-meta" style="font-size:0.72rem;">
+          <div class="card-meta-item">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            ${scam.report_count}
+          </div>
+          <span>${timeAgo(scam.created_at)}</span>
+        </div>
+        ${scam.platform ? `<span class="card-platform">${scam.platform}</span>` : ''}
+      </div>
+    </div>`;
+  }
+}
+
+function renderSkeletons() {
+  const container = document.getElementById('scam-container');
+  container.className = state.view === 'grid' ? 'scam-grid' : 'scam-list';
+  container.innerHTML = Array(6).fill(0).map(() => `
+    <div class="skeleton-card">
+      <div class="skeleton" style="width:42px;height:42px;border-radius:12px;margin-bottom:12px;"></div>
+      <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px;"></div>
+      <div class="skeleton" style="height:12px;width:90%;margin-bottom:6px;"></div>
+      <div class="skeleton" style="height:12px;width:60%;margin-bottom:16px;"></div>
+      <div class="skeleton" style="height:10px;width:40%;"></div>
+    </div>`).join('');
+}
+
+function renderEmpty() {
+  return `<div class="state-block" style="grid-column:1/-1">
+    <div class="state-icon">🔍</div>
+    <div class="state-title">No scams found</div>
+    <div class="state-sub">Try adjusting your search or filters. New reports are added continuously.</div>
+  </div>`;
+}
+
+function renderPagination() {
+  const pag = document.getElementById('pagination');
+  if (state.pages <= 1) { pag.innerHTML = ''; return; }
+  let html = `<button class="page-btn" onclick="changePage(${state.page-1})" ${state.page===1?'disabled':''}>
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>`;
+  const range = [], delta = 2;
+  for (let i = Math.max(1,state.page-delta); i <= Math.min(state.pages,state.page+delta); i++) range.push(i);
+  if (range[0] > 1) { html += `<button class="page-btn" onclick="changePage(1)">1</button>`; if (range[0]>2) html += `<span style="padding:0 4px;color:var(--ink-muted)">…</span>`; }
+  range.forEach(p => { html += `<button class="page-btn${p===state.page?' active':''}" onclick="changePage(${p})">${p}</button>`; });
+  if (range[range.length-1] < state.pages) { if (range[range.length-1]<state.pages-1) html += `<span style="padding:0 4px;color:var(--ink-muted)">…</span>`; html += `<button class="page-btn" onclick="changePage(${state.pages})">${state.pages}</button>`; }
+  html += `<button class="page-btn" onclick="changePage(${state.page+1})" ${state.page===state.pages?'disabled':''}>
+    <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>`;
+  pag.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────
+// LOAD
+// ─────────────────────────────────────────────
+async function loadScams() {
+  if (state.loading) return;
+  state.loading = true;
+  renderSkeletons();
+  const result = await fetchScams();
+  state.scams = result.data;
+  state.total = result.total;
+  state.pages = result.pages;
+  state.loading = false;
+  const container = document.getElementById('scam-container');
+  container.className = state.view === 'grid' ? 'scam-grid' : 'scam-list';
+  if (!state.scams.length) { container.innerHTML = renderEmpty(); document.getElementById('pagination').innerHTML=''; document.getElementById('results-count').textContent='No results'; return; }
+  container.innerHTML = state.scams.map((s,i) => renderCard(s,i)).join('');
+  document.getElementById('results-count').textContent = `${result.total.toLocaleString()} result${result.total!==1?'s':''}`;
+  renderPagination();
+}
+
+async function loadStats() {
+  const stats = await fetchStats();
+  if (!stats) return;
+  animateNum('stat-total', stats.total);
+  animateNum('stat-today', stats.today);
+  animateNum('stat-high', stats.high_severity);
+  animateNum('stat-verified', stats.verified);
+}
+
+function animateNum(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let current = 0;
+  const step = target / 40;
+  const timer = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = Math.floor(current).toLocaleString();
+    if (current >= target) clearInterval(timer);
+  }, 30);
+}
+
+// ─────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────
+async function openModal(id) {
+  const overlay = document.getElementById('modal-overlay');
+  const body = document.getElementById('modal-body');
+  overlay.classList.add('open');
+  body.innerHTML = `<div class="state-block" style="padding:3rem"><div class="skeleton" style="height:100px;"></div></div>`;
+  document.getElementById('modal-title').textContent = 'Loading…';
+  document.getElementById('modal-icon').textContent = '⏳';
+  document.getElementById('modal-badges').innerHTML = '';
+  const scam = await fetchScamById(id);
+  if (!scam) { body.innerHTML = '<p style="padding:2rem;color:var(--ink-muted)">Failed to load scam details.</p>'; return; }
+  const meta = TYPE_META[scam.type] || TYPE_META.other;
+  document.getElementById('modal-icon').textContent = meta.icon;
+  document.getElementById('modal-icon').style.background = meta.bg;
+  document.getElementById('modal-title').textContent = scam.title;
+  document.getElementById('modal-badges').innerHTML = severityBadge(scam.severity) + ' ' + statusBadge(scam.status) + ` <span class="badge" style="background:var(--surface2);color:var(--ink-muted)">${scam.report_id}</span>`;
+  const reportPct = Math.min(100, (scam.report_count / 250) * 100);
+  body.innerHTML = `
+    <div class="modal-warning">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+      Do not visit flagged URLs or engage with scammers. If you have already been affected, call the Anti-Scam Helpline at <strong>1800-722-6688</strong>.
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Description</div>
+      <p class="modal-desc">${scam.description}</p>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Details</div>
+      <div class="modal-meta-grid">
+        <div class="meta-item"><div class="meta-key">Type</div><div class="meta-val">${scam.type.charAt(0).toUpperCase()+scam.type.slice(1)}</div></div>
+        <div class="meta-item"><div class="meta-key">Platform</div><div class="meta-val">${scam.platform||'—'}</div></div>
+        ${scam.url ? `<div class="meta-item" style="grid-column:span 2"><div class="meta-key">Suspicious URL</div><div class="meta-val url">⛔ ${scam.url}</div></div>` : ''}
+        ${scam.phone_number ? `<div class="meta-item"><div class="meta-key">Scammer Number</div><div class="meta-val">${scam.phone_number}</div></div>` : ''}
+        ${scam.amount_lost ? `<div class="meta-item"><div class="meta-key">Amount Lost</div><div class="meta-val" style="color:var(--red)">SGD ${Number(scam.amount_lost).toLocaleString('en-SG',{minimumFractionDigits:2})}</div></div>` : ''}
+        <div class="meta-item"><div class="meta-key">First Reported</div><div class="meta-val">${formatDate(scam.created_at)}</div></div>
+        <div class="meta-item"><div class="meta-key">Community Reports</div>
+          <div class="meta-val">${scam.report_count} report${scam.report_count!==1?'s':''}</div>
+          <div class="report-count-bar"><div class="report-count-fill" style="width:${reportPct}%"></div></div>
+        </div>
+      </div>
+    </div>
+    ${scam.timeline && scam.timeline.length ? `
+    <div class="modal-section">
+      <div class="modal-section-title">Activity Timeline</div>
+      <div class="timeline">
+        ${scam.timeline.map(t => `<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-text">${t.text}</div><div class="timeline-time">${t.time}</div></div>`).join('')}
+      </div>
+    </div>` : ''}
+    <div style="display:flex;gap:0.75rem;margin-top:1rem;flex-wrap:wrap;">
+      <a href="report-a-scam.html" style="flex:1;text-align:center;padding:0.75rem;border-radius:var(--r-pill);background:var(--accent);color:#fff;text-decoration:none;font-weight:600;font-size:0.88rem;">+ Report this scam too</a>
+      <button onclick="copyLink(${scam.id})" style="flex:1;padding:0.75rem;border-radius:var(--r-pill);border:1.5px solid var(--border-soft);background:transparent;font-family:var(--font-body);font-size:0.88rem;font-weight:500;color:var(--ink-soft);cursor:pointer;">🔗 Share report</button>
+    </div>`;
+}
+
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+function copyLink(id) {
+  const url = `${location.origin}${location.pathname}?scam=${id}`;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard'));
+}
+
+// ─────────────────────────────────────────────
+// CONTROLS
+// ─────────────────────────────────────────────
+let searchTimer;
+document.getElementById('search-input').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.search = this.value; state.page = 1; loadScams(); }, 350);
+});
+document.getElementById('sort-select').addEventListener('change', function() { state.sort = this.value; state.page = 1; loadScams(); });
+document.getElementById('type-filter').addEventListener('change', function() { state.typeFilter = this.value; state.page = 1; loadScams(); });
+
+function toggleFilter(tag) {
+  const { filter, val } = tag.dataset;
+  if (state.filters[filter] === val) { state.filters[filter] = null; tag.classList.remove('active'); }
+  else {
+    document.querySelectorAll(`[data-filter="${filter}"]`).forEach(t => t.classList.remove('active'));
+    state.filters[filter] = val; tag.classList.add('active');
+  }
+  state.page = 1; loadScams();
+}
+
+function clearFilters() {
+  state.filters = { severity: null, status: null, platform: null };
+  state.search = ''; state.typeFilter = ''; state.sort = 'date_desc'; state.page = 1;
+  document.getElementById('search-input').value = '';
+  document.getElementById('type-filter').value = '';
+  document.getElementById('sort-select').value = 'date_desc';
+  document.querySelectorAll('.filter-tag.active').forEach(t => t.classList.remove('active'));
+  loadScams();
+}
+
+function setView(v) {
+  state.view = v;
+  document.getElementById('btn-grid').classList.toggle('active', v==='grid');
+  document.getElementById('btn-list').classList.toggle('active', v==='list');
+  loadScams();
+}
+
+function changePage(p) {
+  if (p < 1 || p > state.pages || p === state.page) return;
+  state.page = p;
+  document.querySelector('.main-layout').scrollIntoView({ behavior:'smooth', block:'start' });
+  loadScams();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Deep link ?scam=ID
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('scam')) openModal(parseInt(urlParams.get('scam')));
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+loadStats();
+loadScams();
+</script>
+</body>
+</html>

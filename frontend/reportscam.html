@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScamWatch — Report a Scam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #0a0f1e;
+  --ink-soft: #3a4060;
+  --ink-muted: #6b7394;
+  --bg: #f4f6ff;
+  --surface: #ffffff;
+  --surface2: #eef1ff;
+  --accent: #1a3cf8;
+  --accent-light: #e8edff;
+  --accent2: #00c17c;
+  --accent2-light: #e0fff3;
+  --warn: #f5a524;
+  --warn-light: #fff8eb;
+  --red: #e63946;
+  --red-light: #fff0f1;
+  --border: rgba(26,60,248,0.12);
+  --border-soft: rgba(10,15,30,0.08);
+  --shadow: 0 4px 24px rgba(26,60,248,0.10);
+  --shadow-lg: 0 12px 48px rgba(26,60,248,0.15);
+  --r: 16px;
+  --r-sm: 10px;
+  --r-pill: 999px;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(244,246,255,0.88);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0 clamp(1.5rem,5vw,5rem);
+  display: flex; align-items: center; justify-content: space-between;
+  height: 64px;
+}
+.nav-logo {
+  font-family: var(--font-display);
+  font-weight: 800; font-size: 1.35rem;
+  color: var(--ink); text-decoration: none;
+  display: flex; align-items: center; gap: 10px;
+}
+.nav-logo-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.nav-back {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.875rem; color: var(--ink-soft); text-decoration: none;
+  font-weight: 500; transition: color 0.2s;
+}
+.nav-back:hover { color: var(--accent); }
+.nav-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── PAGE HEADER ── */
+.page-header {
+  background: var(--ink);
+  padding: clamp(3rem,6vw,5rem) clamp(1.5rem,5vw,5rem) 0;
+  position: relative; overflow: hidden;
+}
+.page-header::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 80% at 20% 50%, rgba(26,60,248,0.35), transparent 65%);
+  pointer-events: none;
+}
+.page-header-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 3rem; align-items: end;
+  position: relative; z-index: 1;
+}
+.page-header-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45); margin-bottom: 1rem;
+}
+.page-header-label::before { content: ''; width: 20px; height: 2px; background: rgba(255,255,255,0.35); border-radius: 1px; }
+.page-header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem,4.5vw,3.2rem);
+  font-weight: 800; line-height: 1.1; letter-spacing: -0.02em;
+  color: #fff; margin-bottom: 1rem;
+}
+.page-header-desc {
+  font-size: 1rem; color: rgba(255,255,255,0.55);
+  line-height: 1.75; font-weight: 300;
+  max-width: 520px; margin-bottom: 2.5rem;
+}
+.anon-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(0,193,124,0.15);
+  border: 1px solid rgba(0,193,124,0.3);
+  color: #4dffc4; font-size: 0.78rem; font-weight: 600;
+  padding: 7px 16px; border-radius: var(--r-pill);
+  margin-bottom: 2.5rem;
+}
+.anon-badge svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.steps-indicator {
+  display: flex; align-items: center; gap: 0;
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--r);
+  padding: 1.5rem 2rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  align-self: flex-start; margin-top: 1rem;
+}
+.step-dot {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: relative; cursor: pointer;
+}
+.step-dot-circle {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 0.85rem; font-weight: 700;
+  transition: all 0.3s;
+  border: 2px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.35);
+  background: transparent;
+}
+.step-dot.active .step-dot-circle {
+  background: var(--accent); border-color: var(--accent);
+  color: #fff; box-shadow: 0 0 0 4px rgba(26,60,248,0.25);
+}
+.step-dot.done .step-dot-circle {
+  background: var(--accent2); border-color: var(--accent2); color: #fff;
+}
+.step-dot-label {
+  font-size: 0.68rem; color: rgba(255,255,255,0.3);
+  font-weight: 500; white-space: nowrap; text-align: center;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  transition: color 0.3s;
+}
+.step-dot.active .step-dot-label { color: rgba(255,255,255,0.8); }
+.step-dot.done .step-dot-label { color: var(--accent2); }
+.step-connector {
+  width: 40px; height: 2px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 4px; margin-bottom: 24px;
+  flex-shrink: 0; border-radius: 1px;
+  transition: background 0.3s;
+}
+.step-connector.done { background: var(--accent2); }
+
+/* ── FORM AREA ── */
+.form-area {
+  max-width: 1100px; margin: 0 auto;
+  padding: 3rem clamp(1.5rem,5vw,5rem) 5rem;
+  display: grid; grid-template-columns: 1fr 340px;
+  gap: 2.5rem; align-items: start;
+}
+
+/* ── FORM CARD ── */
+.form-card {
+  background: var(--surface);
+  border-radius: var(--r);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.form-step { display: none; }
+.form-step.active { display: block; }
+
+.form-section-header {
+  padding: 1.75rem 2rem 0;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 1.5rem;
+}
+.form-section-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.3rem; font-weight: 700; color: var(--ink);
+  margin-bottom: 0.35rem;
+}
+.form-section-header p { font-size: 0.88rem; color: var(--ink-muted); line-height: 1.6; }
+
+.form-body { padding: 0 2rem 2rem; }
+
+/* ── SCAM TYPE SELECTOR ── */
+.scam-type-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  margin-bottom: 1.75rem;
+}
+.scam-type-btn {
+  border: 1.5px solid var(--border-soft);
+  background: var(--surface); border-radius: var(--r-sm);
+  padding: 1rem 0.75rem;
+  cursor: pointer; text-align: center;
+  transition: all 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.scam-type-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+.scam-type-btn.selected {
+  border-color: var(--accent); background: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(26,60,248,0.1);
+}
+.scam-type-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; background: var(--surface2);
+  transition: background 0.2s;
+}
+.scam-type-btn.selected .scam-type-icon,
+.scam-type-btn:hover .scam-type-icon { background: rgba(26,60,248,0.12); }
+.scam-type-label {
+  font-size: 0.72rem; font-weight: 600; color: var(--ink-soft);
+  text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.3;
+  transition: color 0.2s;
+}
+.scam-type-btn.selected .scam-type-label,
+.scam-type-btn:hover .scam-type-label { color: var(--accent); }
+
+/* ── FORM FIELDS ── */
+.field-group { margin-bottom: 1.5rem; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+label {
+  display: block; font-size: 0.82rem; font-weight: 600;
+  color: var(--ink-soft); margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.label-optional {
+  font-size: 0.72rem; font-weight: 400; color: var(--ink-muted);
+  text-transform: none; letter-spacing: 0; margin-left: 6px;
+}
+input[type="text"], input[type="tel"], input[type="email"], input[type="url"],
+input[type="date"], select, textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body); font-size: 0.95rem;
+  color: var(--ink); outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  appearance: none;
+}
+input::placeholder, textarea::placeholder { color: var(--ink-muted); }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(26,60,248,0.1);
+  background: var(--surface);
+}
+input.error, select.error, textarea.error {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(230,57,70,0.1);
+}
+textarea { resize: vertical; min-height: 120px; line-height: 1.65; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7394' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 2.5rem; cursor: pointer; }
+.field-hint { font-size: 0.78rem; color: var(--ink-muted); margin-top: 6px; line-height: 1.5; }
+.field-error { font-size: 0.78rem; color: var(--red); margin-top: 6px; display: none; }
+.field-error.show { display: block; }
+
+/* ── EVIDENCE UPLOAD ── */
+.upload-zone {
+  border: 2px dashed var(--border-soft);
+  border-radius: var(--r-sm); padding: 2rem;
+  text-align: center; cursor: pointer;
+  transition: all 0.2s; position: relative;
+  background: var(--bg);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent); background: var(--accent-light);
+}
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  width: 100%; height: 100%; border: none; box-shadow: none;
+}
+.upload-zone input[type="file"]:focus { box-shadow: none; }
+.upload-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+.upload-title { font-weight: 600; font-size: 0.9rem; color: var(--ink); margin-bottom: 4px; }
+.upload-sub { font-size: 0.78rem; color: var(--ink-muted); }
+.upload-previews { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+.upload-preview {
+  width: 72px; height: 72px; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; font-size: 0.65rem;
+  color: var(--ink-muted); text-align: center; padding: 4px;
+  font-weight: 500;
+}
+.upload-preview img { width: 100%; height: 100%; object-fit: cover; }
+.upload-preview-remove {
+  position: absolute; top: 3px; right: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--red); color: #fff;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; font-weight: 700;
+}
+
+/* ── SEVERITY SELECTOR ── */
+.severity-row { display: flex; gap: 8px; }
+.severity-btn {
+  flex: 1; padding: 0.7rem 0.5rem;
+  border-radius: var(--r-sm); border: 1.5px solid var(--border-soft);
+  background: var(--bg); cursor: pointer;
+  text-align: center; font-size: 0.75rem; font-weight: 600;
+  transition: all 0.2s; color: var(--ink-soft);
+}
+.severity-btn:hover { border-color: var(--ink-soft); }
+.severity-btn[data-level="low"].selected { background: var(--accent2-light); border-color: var(--accent2); color: var(--accent2); }
+.severity-btn[data-level="medium"].selected { background: var(--warn-light); border-color: var(--warn); color: var(--warn); }
+.severity-btn[data-level="high"].selected { background: var(--red-light); border-color: var(--red); color: var(--red); }
+
+/* ── CHECKBOX / RADIO ── */
+.check-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 1rem 1.25rem; border-radius: var(--r-sm);
+  border: 1.5px solid var(--border-soft); background: var(--bg);
+  cursor: pointer; transition: all 0.2s; margin-bottom: 10px;
+}
+.check-row:hover { border-color: var(--accent); background: var(--accent-light); }
+.check-row.checked { border-color: var(--accent); background: var(--accent-light); }
+.check-box {
+  width: 20px; height: 20px; border-radius: 6px;
+  border: 2px solid var(--border-soft); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; margin-top: 1px;
+  background: var(--surface);
+}
+.check-row.checked .check-box { background: var(--accent); border-color: var(--accent); }
+.check-box-tick { width: 10px; height: 10px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity 0.2s; }
+.check-row.checked .check-box-tick { opacity: 1; }
+.check-text { flex: 1; }
+.check-text strong { font-size: 0.88rem; font-weight: 600; color: var(--ink); display: block; margin-bottom: 2px; }
+.check-text span { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.5; }
+
+/* ── FORM NAVIGATION ── */
+.form-footer {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem;
+  background: var(--bg);
+}
+.btn-prev {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0.75rem 1.5rem; border-radius: var(--r-pill);
+  border: 1.5px solid var(--border-soft); background: transparent;
+  font-family: var(--font-body); font-size: 0.9rem; font-weight: 500;
+  color: var(--ink-soft); cursor: pointer; transition: all 0.2s;
+}
+.btn-prev:hover { border-color: var(--ink-soft); color: var(--ink); }
+.btn-prev svg, .btn-next svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.btn-next {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0.75rem 1.75rem; border-radius: var(--r-pill);
+  background: var(--accent); color: #fff; border: none;
+  font-family: var(--font-body); font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; margin-left: auto;
+}
+.btn-next:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+.btn-submit {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0.85rem 2rem; border-radius: var(--r-pill);
+  background: var(--accent2); color: #fff; border: none;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s; margin-left: auto;
+}
+.btn-submit:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,193,124,0.3); }
+.btn-submit svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── REVIEW STEP ── */
+.review-section { margin-bottom: 1.5rem; }
+.review-section-title {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-muted);
+  margin-bottom: 0.75rem; padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.review-row {
+  display: flex; gap: 1rem; justify-content: space-between;
+  padding: 0.6rem 0; border-bottom: 1px solid var(--border-soft);
+  font-size: 0.88rem;
+}
+.review-row:last-child { border-bottom: none; }
+.review-key { color: var(--ink-muted); font-weight: 500; flex-shrink: 0; }
+.review-val { color: var(--ink); font-weight: 500; text-align: right; max-width: 300px; word-break: break-word; }
+.review-val.tag {
+  background: var(--red-light); color: var(--red);
+  padding: 2px 10px; border-radius: var(--r-pill);
+  font-size: 0.78rem; font-weight: 600;
+}
+
+/* ── SUCCESS STATE ── */
+#success-state { display: none; }
+#success-state.show { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 4rem 2rem; }
+.success-icon {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: var(--accent2-light); display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.5rem;
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+@keyframes popIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.success-icon svg { width: 36px; height: 36px; fill: none; stroke: var(--accent2); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+#success-state h2 { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; color: var(--ink); margin-bottom: 0.75rem; }
+#success-state p { color: var(--ink-soft); line-height: 1.75; max-width: 440px; margin-bottom: 0.5rem; }
+.report-id {
+  background: var(--accent-light); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  font-family: monospace; font-size: 1rem; font-weight: 600; color: var(--accent);
+  display: flex; align-items: center; gap: 12px;
+}
+.copy-btn {
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 600;
+  background: var(--accent); color: #fff; border: none;
+  padding: 5px 12px; border-radius: var(--r-pill); cursor: pointer;
+  transition: all 0.2s;
+}
+.copy-btn:hover { opacity: 0.85; }
+.success-actions { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center; }
+
+/* ── SIDEBAR ── */
+.sidebar { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.info-card {
+  background: var(--surface); border-radius: var(--r);
+  border: 1px solid var(--border-soft); overflow: hidden;
+}
+.info-card-header {
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.8rem; font-weight: 700; color: var(--ink-soft);
+  text-transform: uppercase; letter-spacing: 0.07em;
+  display: flex; align-items: center; gap: 8px;
+}
+.info-card-header svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.info-card-body { padding: 1.25rem; }
+
+/* Tips */
+.tip-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 1rem; font-size: 0.85rem; color: var(--ink-soft); line-height: 1.55;
+}
+.tip-item:last-child { margin-bottom: 0; }
+.tip-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-light); color: var(--accent);
+  font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+
+/* Hotline */
+.hotline-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 1rem 0; border-bottom: 1px solid var(--border-soft);
+}
+.hotline-row:last-child { border-bottom: none; padding-bottom: 0; }
+.hotline-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.hotline-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hotline-icon.red { background: var(--red-light); }
+.hotline-icon.red svg { stroke: var(--red); }
+.hotline-icon.blue { background: var(--accent-light); }
+.hotline-icon.blue svg { stroke: var(--accent); }
+.hotline-icon.green { background: var(--accent2-light); }
+.hotline-icon.green svg { stroke: var(--accent2); }
+.hotline-num { font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--ink); }
+.hotline-label { font-size: 0.75rem; color: var(--ink-muted); }
+
+/* Recent reports */
+.recent-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 0.85rem 0; border-bottom: 1px solid var(--border-soft);
+}
+.recent-item:last-child { border-bottom: none; padding-bottom: 0; }
+.recent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.recent-text { flex: 1; font-size: 0.82rem; color: var(--ink-soft); line-height: 1.5; }
+.recent-text strong { color: var(--ink); font-weight: 600; display: block; margin-bottom: 1px; }
+.recent-time { font-size: 0.72rem; color: var(--ink-muted); }
+
+/* Progress bar */
+.progress-track {
+  height: 4px; background: rgba(255,255,255,0.1);
+  border-radius: 2px; margin-top: 2.5rem;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 2px;
+  background: var(--accent2);
+  transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .form-area { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .page-header-inner { grid-template-columns: 1fr; }
+  .steps-indicator { display: none; }
+  .scam-type-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .field-row { grid-template-columns: 1fr; }
+  .scam-type-grid { grid-template-columns: repeat(2, 1fr); }
+  .severity-row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="introduction.html" class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+    </div>
+    ScamWatch
+  </a>
+  <a href="introduction.html" class="nav-back">
+    <svg viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+    Back to Home
+  </a>
+</nav>
+
+<!-- PAGE HEADER -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="page-header-label">Community Reports</div>
+      <h1>Report a Scam</h1>
+      <div class="anon-badge">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Your report is 100% anonymous
+      </div>
+      <p class="page-header-desc">Help protect Singapore by reporting scam encounters. Every report goes directly into our live database and protects thousands of others within minutes.</p>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width: 33%"></div>
+      </div>
+    </div>
+
+    <div class="steps-indicator" id="steps-indicator">
+      <div class="step-dot active" id="step-dot-1">
+        <div class="step-dot-circle">1</div>
+        <div class="step-dot-label">Scam Type</div>
+      </div>
+      <div class="step-connector" id="conn-1-2"></div>
+      <div class="step-dot" id="step-dot-2">
+        <div class="step-dot-circle">2</div>
+        <div class="step-dot-label">Details</div>
+      </div>
+      <div class="step-connector" id="conn-2-3"></div>
+      <div class="step-dot" id="step-dot-3">
+        <div class="step-dot-circle">3</div>
+        <div class="step-dot-label">Review</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FORM AREA -->
+<div class="form-area">
+
+  <!-- MAIN FORM CARD -->
+  <div class="form-card" id="form-card">
+
+    <!-- STEP 1: Scam Type -->
+    <div class="form-step active" id="step-1">
+      <div class="form-section-header">
+        <h2>What type of scam did you encounter?</h2>
+        <p>Select the category that best describes the scam. This helps us categorise and route your report accurately.</p>
+      </div>
+      <div class="form-body">
+        <div class="scam-type-grid">
+          <button class="scam-type-btn" data-type="phishing" onclick="selectScamType(this)">
+            <div class="scam-type-icon">🎣</div>
+            <div class="scam-type-label">Phishing Link / Email</div>
+          </button>
+          <button class="scam-type-btn" data-type="sms" onclick="selectScamType(this)">
+            <div class="scam-type-icon">📱</div>
+            <div class="scam-type-label">Scam SMS / Call</div>
+          </button>
+          <button class="scam-type-btn" data-type="investment" onclick="selectScamType(this)">
+            <div class="scam-type-icon">📈</div>
+            <div class="scam-type-label">Investment Scam</div>
+          </button>
+          <button class="scam-type-btn" data-type="ecommerce" onclick="selectScamType(this)">
+            <div class="scam-type-icon">🛒</div>
+            <div class="scam-type-label">E-Commerce / Fake Shop</div>
+          </button>
+          <button class="scam-type-btn" data-type="impersonation" onclick="selectScamType(this)">
+            <div class="scam-type-icon">🎭</div>
+            <div class="scam-type-label">Impersonation</div>
+          </button>
+          <button class="scam-type-btn" data-type="job" onclick="selectScamType(this)">
+            <div class="scam-type-icon">💼</div>
+            <div class="scam-type-label">Job / Part-time Scam</div>
+          </button>
+          <button class="scam-type-btn" data-type="love" onclick="selectScamType(this)">
+            <div class="scam-type-icon">💔</div>
+            <div class="scam-type-label">Love / Romance Scam</div>
+          </button>
+          <button class="scam-type-btn" data-type="malware" onclick="selectScamType(this)">
+            <div class="scam-type-icon">🦠</div>
+            <div class="scam-type-label">Malware / App Scam</div>
+          </button>
+          <button class="scam-type-btn" data-type="other" onclick="selectScamType(this)">
+            <div class="scam-type-icon">❓</div>
+            <div class="scam-type-label">Other</div>
+          </button>
+        </div>
+
+        <div class="field-group" id="type-error-msg" style="display:none;">
+          <p style="color:var(--red);font-size:0.82rem;">Please select a scam type to continue.</p>
+        </div>
+
+        <div class="field-group">
+          <label for="platform">Platform / Channel <span class="label-optional">(optional)</span></label>
+          <select id="platform">
+            <option value="">Select where the scam occurred...</option>
+            <option>WhatsApp</option>
+            <option>Telegram</option>
+            <option>SMS</option>
+            <option>Phone Call</option>
+            <option>Email</option>
+            <option>Facebook</option>
+            <option>Instagram</option>
+            <option>Carousell</option>
+            <option>Lazada / Shopee</option>
+            <option>LinkedIn</option>
+            <option>Website</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label>How severe was the impact?</label>
+          <div class="severity-row">
+            <button class="severity-btn" data-level="low" onclick="selectSeverity(this)">⚠️ Low<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">No loss</span></button>
+            <button class="severity-btn" data-level="medium" onclick="selectSeverity(this)">🚨 Medium<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">Attempted loss</span></button>
+            <button class="severity-btn" data-level="high" onclick="selectSeverity(this)">🔴 High<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">Financial loss</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="form-footer">
+        <span style="font-size:0.82rem;color:var(--ink-muted);">Step 1 of 3</span>
+        <button class="btn-next" onclick="goToStep(2)">
+          Next: Add Details
+          <svg viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Details -->
+    <div class="form-step" id="step-2">
+      <div class="form-section-header">
+        <h2>Tell us what happened</h2>
+        <p>Provide as much detail as you can. The more information you share, the better we can protect others.</p>
+      </div>
+      <div class="form-body">
+
+        <div class="field-group">
+          <label for="scam-url">Suspicious URL / Link <span class="label-optional">(if applicable)</span></label>
+          <input type="url" id="scam-url" placeholder="https://example-fake-site.com">
+          <p class="field-hint">Paste the full link here. Do NOT click suspicious links — copy the text instead.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="scammer-num">Scammer's Phone Number <span class="label-optional">(optional)</span></label>
+            <input type="tel" id="scammer-num" placeholder="+65 9123 4567">
+          </div>
+          <div class="field-group">
+            <label for="incident-date">Date of Incident</label>
+            <input type="date" id="incident-date">
+            <p class="field-error" id="date-error">Please enter the date of the incident.</p>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="scam-desc">Describe what happened <span style="color:var(--red);">*</span></label>
+          <textarea id="scam-desc" placeholder="e.g. I received a WhatsApp message claiming to be from OCBC Bank asking me to verify my account by clicking a link..."></textarea>
+          <p class="field-error" id="desc-error">Please describe the scam incident.</p>
+          <p class="field-hint">Include details like what was said, what was asked of you, and any suspicious elements you noticed.</p>
+        </div>
+
+        <div class="field-group">
+          <label for="amount-lost">Amount Lost (SGD) <span class="label-optional">(if any)</span></label>
+          <input type="text" id="amount-lost" placeholder="0.00 — leave blank if nothing was lost">
+        </div>
+
+        <div class="field-group">
+          <label>Upload Evidence <span class="label-optional">(screenshots, files)</span></label>
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept="image/*,.pdf" multiple onchange="handleFiles(this.files)">
+            <div class="upload-icon">📎</div>
+            <div class="upload-title">Drop files here or click to browse</div>
+            <div class="upload-sub">Screenshots, PDFs — up to 10MB each</div>
+          </div>
+          <div class="upload-previews" id="upload-previews"></div>
+        </div>
+
+        <div class="field-group">
+          <label>I confirm that <span style="color:var(--red);">*</span></label>
+          <div class="check-row" onclick="toggleCheck(this)" id="check-accurate">
+            <div class="check-box">
+              <svg class="check-box-tick" viewBox="0 0 12 10"><polyline points="1,5 4,8 11,1"/></svg>
+            </div>
+            <div class="check-text">
+              <strong>This information is accurate to the best of my knowledge</strong>
+              <span>False reports may hinder investigations and waste community resources.</span>
+            </div>
+          </div>
+          <div class="check-row" onclick="toggleCheck(this)" id="check-anon">
+            <div class="check-box">
+              <svg class="check-box-tick" viewBox="0 0 12 10"><polyline points="1,5 4,8 11,1"/></svg>
+            </div>
+            <div class="check-text">
+              <strong>I understand this report is submitted anonymously</strong>
+              <span>No personal identifying information is stored with this report.</span>
+            </div>
+          </div>
+          <p class="field-error" id="check-error">Please confirm both statements to continue.</p>
+        </div>
+
+      </div>
+      <div class="form-footer">
+        <button class="btn-prev" onclick="goToStep(1)">
+          <svg viewBox="0 0 24 24"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+          Back
+        </button>
+        <span style="font-size:0.82rem;color:var(--ink-muted);">Step 2 of 3</span>
+        <button class="btn-next" onclick="goToStep(3)">
+          Review Report
+          <svg viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Review -->
+    <div class="form-step" id="step-3">
+      <div class="form-section-header">
+        <h2>Review your report</h2>
+        <p>Please check the details below before submitting. Once submitted, your report will be reviewed and added to the live database.</p>
+      </div>
+      <div class="form-body" id="review-body">
+        <!-- Filled by JS -->
+      </div>
+      <div class="form-footer">
+        <button class="btn-prev" onclick="goToStep(2)">
+          <svg viewBox="0 0 24 24"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+          Edit Report
+        </button>
+        <span style="font-size:0.82rem;color:var(--ink-muted);">Step 3 of 3</span>
+        <button class="btn-submit" onclick="submitReport()">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Submit Report
+        </button>
+      </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div id="success-state">
+      <div class="success-icon">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <h2>Report Submitted!</h2>
+      <p>Thank you for helping keep Singapore safe. Your report has been received and will be reviewed within minutes.</p>
+      <div class="report-id" id="report-id-display">
+        <span id="report-id-text">SS-2024-00000</span>
+        <button class="copy-btn" onclick="copyReportId()">Copy ID</button>
+      </div>
+      <p style="font-size:0.85rem;">Save your report ID to track the status of your submission.</p>
+      <div class="success-actions">
+        <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:0.75rem 1.5rem;border-radius:999px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;font-size:0.9rem;">
+          Check Scam Scanner
+        </a>
+        <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:0.75rem 1.5rem;border-radius:999px;border:1.5px solid var(--border-soft);color:var(--ink-soft);text-decoration:none;font-weight:500;font-size:0.9rem;"
+          onclick="resetForm(); return false;">
+          Submit Another
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- Tips -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <svg viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        Tips for Reporting
+      </div>
+      <div class="info-card-body">
+        <div class="tip-item">
+          <div class="tip-num">1</div>
+          <div>Don't click suspicious links — copy the URL text instead and paste it here safely.</div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-num">2</div>
+          <div>Screenshots are extremely valuable — capture the full message including sender details.</div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-num">3</div>
+          <div>Note the exact date and time of the incident while your memory is fresh.</div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-num">4</div>
+          <div>If you lost money, also file a report with SPF at <strong>police.gov.sg/iwitness</strong>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emergency Hotlines -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4 19.79 19.79 0 0 1 1.56 4.83 2 2 0 0 1 3.53 2.63h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        Emergency Hotlines
+      </div>
+      <div class="info-card-body" style="padding-top:0.5rem;">
+        <div class="hotline-row">
+          <div class="hotline-icon red">
+            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4 19.79 19.79 0 0 1 1.56 4.83 2 2 0 0 1 3.53 2.63h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <div>
+            <div class="hotline-num">999</div>
+            <div class="hotline-label">Singapore Police Force</div>
+          </div>
+        </div>
+        <div class="hotline-row">
+          <div class="hotline-icon blue">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div>
+            <div class="hotline-num">1800-722-6688</div>
+            <div class="hotline-label">Anti-Scam Helpline (SPF)</div>
+          </div>
+        </div>
+        <div class="hotline-row">
+          <div class="hotline-icon green">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div>
+            <div class="hotline-num">ScamWatch Bot</div>
+            <div class="hotline-label">@ScamWatchBot on Telegram</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Community Reports -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Recent Reports
+      </div>
+      <div class="info-card-body" style="padding-top:0.5rem;padding-bottom:0.5rem;">
+        <div class="recent-item">
+          <div class="recent-dot" style="background:var(--red);"></div>
+          <div class="recent-text">
+            <strong>Fake OCBC Bank SMS</strong>
+            Phishing link leading to credential harvesting site
+          </div>
+          <div class="recent-time">3m</div>
+        </div>
+        <div class="recent-item">
+          <div class="recent-dot" style="background:var(--warn);"></div>
+          <div class="recent-text">
+            <strong>Part-time job scam</strong>
+            WhatsApp recruitment with upfront payment request
+          </div>
+          <div class="recent-time">17m</div>
+        </div>
+        <div class="recent-item">
+          <div class="recent-dot" style="background:var(--red);"></div>
+          <div class="recent-text">
+            <strong>SingPass impersonation</strong>
+            Official-looking SMS requesting OTP verification
+          </div>
+          <div class="recent-time">41m</div>
+        </div>
+        <div class="recent-item">
+          <div class="recent-dot" style="background:var(--warn);"></div>
+          <div class="recent-text">
+            <strong>Carousell fake buyer</strong>
+            Overpayment scam with refund request via PayNow
+          </div>
+          <div class="recent-time">1h</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+let currentStep = 1;
+let selectedType = null;
+let selectedSeverity = null;
+let uploadedFiles = [];
+
+const scamTypeLabels = {
+  phishing: 'Phishing Link / Email',
+  sms: 'Scam SMS / Call',
+  investment: 'Investment Scam',
+  ecommerce: 'E-Commerce / Fake Shop',
+  impersonation: 'Impersonation',
+  job: 'Job / Part-time Scam',
+  love: 'Love / Romance Scam',
+  malware: 'Malware / App Scam',
+  other: 'Other'
+};
+
+function selectScamType(btn) {
+  document.querySelectorAll('.scam-type-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedType = btn.dataset.type;
+  document.getElementById('type-error-msg').style.display = 'none';
+}
+
+function selectSeverity(btn) {
+  document.querySelectorAll('.severity-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedSeverity = btn.dataset.level;
+}
+
+function toggleCheck(row) {
+  row.classList.toggle('checked');
+  document.getElementById('check-error').classList.remove('show');
+}
+
+function handleFiles(files) {
+  const previews = document.getElementById('upload-previews');
+  Array.from(files).forEach(file => {
+    uploadedFiles.push(file);
+    const div = document.createElement('div');
+    div.className = 'upload-preview';
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      div.appendChild(img);
+    } else {
+      div.textContent = file.name.length > 12 ? file.name.substring(0,10)+'...' : file.name;
+    }
+    const rm = document.createElement('button');
+    rm.className = 'upload-preview-remove';
+    rm.innerHTML = '✕';
+    rm.onclick = () => { div.remove(); uploadedFiles = uploadedFiles.filter(f => f !== file); };
+    div.appendChild(rm);
+    previews.appendChild(div);
+  });
+}
+
+// drag-drop
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+
+function updateStepUI(step) {
+  [1,2,3].forEach(i => {
+    const dot = document.getElementById('step-dot-' + i);
+    dot.classList.remove('active','done');
+    if (i < step) dot.classList.add('done');
+    if (i === step) dot.classList.add('active');
+  });
+  if (step > 1) document.getElementById('conn-1-2').classList.add('done');
+  else document.getElementById('conn-1-2').classList.remove('done');
+  if (step > 2) document.getElementById('conn-2-3').classList.add('done');
+  else document.getElementById('conn-2-3').classList.remove('done');
+
+  const pct = { 1: 33, 2: 66, 3: 100 };
+  document.getElementById('progress-fill').style.width = pct[step] + '%';
+}
+
+function goToStep(step) {
+  // Validate
+  if (step === 2 && currentStep === 1) {
+    if (!selectedType) { document.getElementById('type-error-msg').style.display='block'; return; }
+  }
+  if (step === 3 && currentStep === 2) {
+    let valid = true;
+    const desc = document.getElementById('scam-desc').value.trim();
+    const date = document.getElementById('incident-date').value;
+    const c1 = document.getElementById('check-accurate').classList.contains('checked');
+    const c2 = document.getElementById('check-anon').classList.contains('checked');
+    if (!desc) { document.getElementById('desc-error').classList.add('show'); document.getElementById('scam-desc').classList.add('error'); valid=false; }
+    else { document.getElementById('desc-error').classList.remove('show'); document.getElementById('scam-desc').classList.remove('error'); }
+    if (!date) { document.getElementById('date-error').classList.add('show'); document.getElementById('incident-date').classList.add('error'); valid=false; }
+    else { document.getElementById('date-error').classList.remove('show'); document.getElementById('incident-date').classList.remove('error'); }
+    if (!c1 || !c2) { document.getElementById('check-error').classList.add('show'); valid=false; }
+    if (!valid) return;
+    buildReview();
+  }
+
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  currentStep = step;
+  document.getElementById('step-' + step).classList.add('active');
+  updateStepUI(step);
+  document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function buildReview() {
+  const platform = document.getElementById('platform').value;
+  const url = document.getElementById('scam-url').value;
+  const num = document.getElementById('scammer-num').value;
+  const date = document.getElementById('incident-date').value;
+  const desc = document.getElementById('scam-desc').value;
+  const amount = document.getElementById('amount-lost').value;
+
+  const rows = [
+    ['Scam Type', scamTypeLabels[selectedType] || selectedType, true],
+    ['Severity', selectedSeverity ? selectedSeverity.charAt(0).toUpperCase()+selectedSeverity.slice(1) : '—', false],
+    ['Platform', platform || '—', false],
+    ['Suspicious URL', url || '—', false],
+    ['Scammer Number', num || '—', false],
+    ['Date of Incident', date || '—', false],
+    ['Amount Lost', amount ? 'SGD ' + amount : 'None reported', false],
+    ['Files Attached', uploadedFiles.length > 0 ? uploadedFiles.length + ' file(s)' : 'None', false],
+  ];
+
+  let html = '<div class="review-section"><div class="review-section-title">Report Summary</div>';
+  rows.forEach(([k,v,tag]) => {
+    html += `<div class="review-row"><span class="review-key">${k}</span><span class="review-val${tag?' tag':''}">${v}</span></div>`;
+  });
+  html += '</div>';
+  html += '<div class="review-section"><div class="review-section-title">Description</div>';
+  html += `<p style="font-size:0.88rem;color:var(--ink-soft);line-height:1.75;padding:0.75rem 0;">${desc.replace(/\n/g,'<br>')}</p></div>`;
+  html += '<div style="background:var(--warn-light);border:1px solid rgba(245,165,36,0.3);border-radius:var(--r-sm);padding:1rem 1.25rem;font-size:0.85rem;color:var(--ink-soft);line-height:1.6;">';
+  html += '<strong style="color:var(--ink);">⚠️ Before you submit:</strong> By submitting, you confirm this report is truthful and submitted in good faith to protect the community.';
+  html += '</div>';
+  document.getElementById('review-body').innerHTML = html;
+}
+
+function generateReportId() {
+  const yr = new Date().getFullYear();
+  const num = String(Math.floor(10000 + Math.random() * 90000));
+  return `SS-${yr}-${num}`;
+}
+
+function submitReport() {
+  const btn = document.querySelector('.btn-submit');
+  btn.textContent = 'Submitting…';
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+
+  setTimeout(() => {
+    [1,2,3].forEach(i => document.getElementById('step-'+i).classList.remove('active'));
+    document.getElementById('success-state').classList.add('show');
+    document.getElementById('report-id-text').textContent = generateReportId();
+    document.getElementById('steps-indicator').style.opacity = '0.4';
+    document.getElementById('progress-fill').style.width = '100%';
+    document.getElementById('progress-fill').style.background = 'var(--accent2)';
+  }, 1200);
+}
+
+function copyReportId() {
+  const id = document.getElementById('report-id-text').textContent;
+  navigator.clipboard.writeText(id).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy ID', 2000);
+  });
+}
+
+function resetForm() {
+  currentStep = 1;
+  selectedType = null;
+  selectedSeverity = null;
+  uploadedFiles = [];
+  document.querySelectorAll('.scam-type-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.severity-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.check-row').forEach(r => r.classList.remove('checked'));
+  ['scam-url','scammer-num','incident-date','scam-desc','amount-lost'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('platform').value = '';
+  document.getElementById('upload-previews').innerHTML = '';
+  document.getElementById('success-state').classList.remove('show');
+  document.getElementById('step-1').classList.add('active');
+  document.getElementById('steps-indicator').style.opacity = '1';
+  document.getElementById('progress-fill').style.width = '33%';
+  document.getElementById('progress-fill').style.background = 'var(--accent2)';
+  updateStepUI(1);
+}
+
+// Set today as default date
+document.getElementById('incident-date').valueAsDate = new Date();
+</script>
+</body>
+</html>

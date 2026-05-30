@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScamWatch — Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2230;--surface3:#232c3d;
+  --border:rgba(255,255,255,0.07);--border-hover:rgba(255,255,255,0.14);
+  --ink:#e6edf3;--ink-soft:#8b949e;--ink-muted:#484f58;
+  --accent:#2f81f7;--accent-light:rgba(47,129,247,0.15);--accent-glow:rgba(47,129,247,0.3);
+  --green:#3fb950;--green-light:rgba(63,185,80,0.15);
+  --red:#f85149;--red-light:rgba(248,81,73,0.15);
+  --amber:#d29922;--amber-light:rgba(210,153,34,0.15);
+  --purple:#a371f7;--purple-light:rgba(163,113,247,0.15);
+  --r:12px;--r-sm:8px;--r-pill:999px;
+  --font-display:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'DM Mono',monospace;
+  --sidebar:268px;
+  --shadow:0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg:0 12px 48px rgba(0,0,0,0.5);
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-body);background:var(--bg);color:var(--ink);min-height:100vh;display:flex;overflow-x:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:var(--sidebar);min-height:100vh;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;z-index:50;
+  transition:transform 0.3s;
+}
+.sidebar-logo{
+  padding:1.5rem 1.5rem 1rem;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--border);
+  text-decoration:none;overflow:hidden;
+}
+.sidebar-logo-icon{
+  width:32px;height:32px;border-radius:9px;
+  background:var(--accent);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.sidebar-logo-icon svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sidebar-logo-text{font-family:var(--font-display);font-weight:800;font-size:1.05rem;color:var(--ink);white-space:nowrap;flex:1;min-width:0;}
+.sidebar-logo-badge{font-size:0.58rem;font-weight:700;background:var(--red);color:#fff;padding:2px 8px;border-radius:var(--r-pill);letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0;white-space:nowrap}
+.sidebar-section{padding:1.25rem 1rem 0.5rem}
+.sidebar-section-label{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-muted);padding:0 0.25rem;margin-bottom:0.5rem}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:0.6rem 0.75rem;border-radius:var(--r-sm);
+  text-decoration:none;font-size:0.875rem;font-weight:500;
+  color:var(--ink-soft);cursor:pointer;
+  transition:all 0.15s;position:relative;
+  border:none;background:transparent;width:100%;text-align:left;
+}
+.nav-item:hover{background:var(--surface3);color:var(--ink)}
+.nav-item.active{background:var(--accent-light);color:var(--accent)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;background:var(--accent);border-radius:2px}
+.nav-item svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-badge{margin-left:auto;font-size:0.68rem;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);background:var(--red);color:#fff}
+.nav-badge.amber{background:var(--amber)}
+.sidebar-footer{margin-top:auto;padding:1rem;border-top:1px solid var(--border)}
+.admin-profile{display:flex;align-items:center;gap:10px;padding:0.6rem 0.5rem;border-radius:var(--r-sm);cursor:pointer;transition:background 0.15s}
+.admin-profile:hover{background:var(--surface3)}
+.admin-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;color:#fff;flex-shrink:0}
+.admin-name{font-size:0.82rem;font-weight:600;color:var(--ink)}
+.admin-role{font-size:0.72rem;color:var(--ink-muted)}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:60px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 2rem 0 2.5rem;gap:1rem;
+  position:sticky;top:0;z-index:40;
+  min-width:0;
+}
+.topbar-title{font-family:var(--font-display);font-weight:700;font-size:1.1rem;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:0.25rem;}
+.topbar-actions{display:flex;align-items:center;gap:0.75rem}
+.topbar-search{
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:0.45rem 0.85rem;
+  font-family:var(--font-body);font-size:0.85rem;color:var(--ink-soft);
+  width:260px;transition:border-color 0.2s;
+}
+.topbar-search:focus-within{border-color:var(--accent)}
+.topbar-search svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.topbar-search input{background:transparent;border:none;outline:none;font-family:var(--font-body);font-size:0.85rem;color:var(--ink);width:100%}
+.topbar-search input::placeholder{color:var(--ink-muted)}
+.icon-btn{
+  width:36px;height:36px;border-radius:var(--r-sm);
+  background:var(--surface2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.15s;color:var(--ink-soft);position:relative;
+}
+.icon-btn:hover{background:var(--surface3);color:var(--ink);border-color:var(--border-hover)}
+.icon-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.notif-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid var(--surface)}
+
+/* ── PAGE CONTENT ── */
+.page{display:none;padding:2rem;flex:1}
+.page.active{display:block}
+
+/* ── STAT CARDS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.25rem 1.5rem;transition:border-color 0.2s,transform 0.2s;
+}
+.stat-card:hover{border-color:var(--border-hover);transform:translateY(-2px)}
+.stat-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0.75rem}
+.stat-card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.stat-card-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.stat-card-icon.blue{background:var(--accent-light);color:var(--accent)}
+.stat-card-icon.green{background:var(--green-light);color:var(--green)}
+.stat-card-icon.red{background:var(--red-light);color:var(--red)}
+.stat-card-icon.amber{background:var(--amber-light);color:var(--amber)}
+.stat-card-icon.purple{background:var(--purple-light);color:var(--purple)}
+.stat-change{font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:var(--r-pill)}
+.stat-change.up{background:var(--green-light);color:var(--green)}
+.stat-change.down{background:var(--red-light);color:var(--red)}
+.stat-num{font-family:var(--font-display);font-size:2rem;font-weight:800;color:var(--ink);line-height:1;margin-bottom:4px}
+.stat-label{font-size:0.8rem;color:var(--ink-soft)}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:1rem;flex-wrap:wrap}
+.section-title{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--ink)}
+.section-actions{display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:0.5rem 1rem;border-radius:var(--r-sm);font-family:var(--font-body);font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.15s;border:none;text-decoration:none;white-space:nowrap}
+.btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#1a6fd4;transform:translateY(-1px)}
+.btn-danger{background:var(--red-light);color:var(--red);border:1px solid rgba(248,81,73,0.3)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-success{background:var(--green-light);color:var(--green);border:1px solid rgba(63,185,80,0.3)}
+.btn-success:hover{background:var(--green);color:#fff}
+.btn-ghost{background:var(--surface2);color:var(--ink-soft);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface3);color:var(--ink);border-color:var(--border-hover)}
+.btn-amber{background:var(--amber-light);color:var(--amber);border:1px solid rgba(210,153,34,0.3)}
+.btn-amber:hover{background:var(--amber);color:#fff}
+.btn-sm{padding:0.35rem 0.75rem;font-size:0.75rem}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.table-toolbar{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap}
+.table-search{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.4rem 0.75rem;font-size:0.82rem;color:var(--ink-soft);flex:1;max-width:320px;transition:border-color 0.2s}
+.table-search:focus-within{border-color:var(--accent)}
+.table-search svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.table-search input{background:transparent;border:none;outline:none;font-family:var(--font-body);font-size:0.82rem;color:var(--ink);width:100%}
+.table-search input::placeholder{color:var(--ink-muted)}
+select.tbl-filter{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.4rem 1.75rem 0.4rem 0.7rem;font-family:var(--font-body);font-size:0.8rem;color:var(--ink-soft);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color 0.2s}
+select.tbl-filter:focus{border-color:var(--accent)}
+.bulk-bar{display:none;align-items:center;gap:0.75rem;padding:0.75rem 1.25rem;background:var(--accent-light);border-bottom:1px solid rgba(47,129,247,0.2)}
+.bulk-bar.show{display:flex}
+.bulk-count{font-size:0.82rem;font-weight:600;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:0.85rem}
+thead tr{border-bottom:1px solid var(--border)}
+th{padding:0.75rem 1rem;text-align:left;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink-muted);white-space:nowrap}
+th.check-col{width:40px}
+td{padding:0.85rem 1rem;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink-soft)}
+tr:last-child td{border-bottom:none}
+tr.selected td{background:var(--accent-light)}
+tr:hover td{background:var(--surface2)}
+tr.selected:hover td{background:rgba(47,129,247,0.2)}
+.td-main{color:var(--ink);font-weight:500}
+.td-mono{font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-muted)}
+.td-url{font-family:var(--font-mono);font-size:0.75rem;color:var(--red);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+input[type="checkbox"]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+/* ── BADGES ── */
+.badge{display:inline-block;font-size:0.68rem;font-weight:700;padding:3px 8px;border-radius:var(--r-pill);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap}
+.badge-high{background:var(--red-light);color:var(--red)}
+.badge-medium{background:var(--amber-light);color:var(--amber)}
+.badge-low{background:var(--green-light);color:var(--green)}
+.badge-verified{background:var(--green-light);color:var(--green)}
+.badge-pending{background:var(--amber-light);color:var(--amber)}
+.badge-flagged{background:var(--red-light);color:var(--red)}
+.badge-removed{background:var(--surface3);color:var(--ink-muted)}
+.badge-active{background:var(--accent-light);color:var(--accent)}
+.type-pill{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;color:var(--ink-soft)}
+
+/* ── ACTION BTNS IN TABLE ── */
+.row-actions{display:flex;gap:6px;align-items:center;opacity:0;transition:opacity 0.15s}
+tr:hover .row-actions{opacity:1}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;padding:2rem;opacity:0;pointer-events:none;transition:opacity 0.2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg);transform:translateY(16px) scale(0.98);transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1)}
+.modal-overlay.open .modal{transform:translateY(0) scale(1)}
+.modal-header{padding:1.5rem 1.75rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;justify-content:space-between}
+.modal-title{font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--ink)}
+.modal-close{width:32px;height:32px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);transition:all 0.15s}
+.modal-close:hover{background:var(--red-light);color:var(--red);border-color:rgba(248,81,73,0.3)}
+.modal-close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.modal-body{padding:1.5rem 1.75rem}
+.modal-footer{padding:1.25rem 1.75rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:0.75rem}
+.form-group{margin-bottom:1.25rem}
+.form-label{display:block;font-size:0.78rem;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.65rem 0.9rem;font-family:var(--font-body);font-size:0.88rem;color:var(--ink);outline:none;transition:border-color 0.2s}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.form-input::placeholder{color:var(--ink-muted)}
+textarea.form-input{resize:vertical;min-height:90px;line-height:1.6}
+select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;cursor:pointer}
+.danger-box{background:var(--red-light);border:1px solid rgba(248,81,73,0.3);border-radius:var(--r-sm);padding:1rem 1.25rem;font-size:0.85rem;color:var(--red);line-height:1.6;display:flex;gap:10px}
+.danger-box svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:1px}
+.info-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem}
+.info-item{background:var(--surface2);border-radius:var(--r-sm);padding:0.75rem 0.9rem}
+.info-key{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink-muted);margin-bottom:3px}
+.info-val{font-size:0.88rem;font-weight:600;color:var(--ink);word-break:break-all}
+
+/* ── ACTIVITY FEED ── */
+.activity-list{display:flex;flex-direction:column;gap:0}
+.activity-item{display:flex;align-items:flex-start;gap:12px;padding:0.85rem 0;border-bottom:1px solid var(--border)}
+.activity-item:last-child{border-bottom:none}
+.activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.activity-text{flex:1;font-size:0.83rem;color:var(--ink-soft);line-height:1.5}
+.activity-text strong{color:var(--ink)}
+.activity-time{font-size:0.72rem;color:var(--ink-muted);white-space:nowrap}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:0.85rem 1.25rem;font-size:0.85rem;font-weight:500;color:var(--ink);box-shadow:var(--shadow-lg);z-index:500;opacity:0;transform:translateY(12px);transition:all 0.3s;display:flex;align-items:center;gap:10px;max-width:320px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem}
+.toast.success .toast-icon{background:var(--green-light);color:var(--green)}
+.toast.error .toast-icon{background:var(--red-light);color:var(--red)}
+.toast.info .toast-icon{background:var(--accent-light);color:var(--accent)}
+
+/* ── TABS ── */
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
+.tab{padding:0.65rem 1.25rem;font-size:0.85rem;font-weight:600;color:var(--ink-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:4rem 2rem;color:var(--ink-muted)}
+.empty-state-icon{font-size:2.5rem;margin-bottom:1rem;opacity:0.5}
+.empty-state-title{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--ink-soft);margin-bottom:0.35rem}
+.empty-state p{font-size:0.85rem;line-height:1.6}
+
+/* ── PAGINATION ── */
+.tbl-pagination{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid var(--border);font-size:0.8rem;color:var(--ink-muted)}
+.tbl-page-btns{display:flex;gap:4px}
+.tbl-page-btn{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--ink-soft);cursor:pointer;font-size:0.8rem;font-family:var(--font-body);transition:all 0.15s;display:flex;align-items:center;justify-content:center}
+.tbl-page-btn:hover{background:var(--surface3);color:var(--ink)}
+.tbl-page-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.tbl-page-btn svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.main{margin-left:0}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <a href="introduction.html" class="sidebar-logo">
+    <div class="sidebar-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+    </div>
+    <span class="sidebar-logo-text">ScamWatch</span>
+  </a>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Overview</div>
+    <button class="nav-item active" onclick="showPage('dashboard',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" onclick="showPage('reports',this)">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Scam Reports
+      <span class="nav-badge" id="pending-badge">12</span>
+    </button>
+    <button class="nav-item" onclick="showPage('flagged',this)">
+      <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      Flagged Content
+      <span class="nav-badge amber" id="flagged-badge">5</span>
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Management</div>
+    <button class="nav-item" onclick="showPage('users',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+      Spam &amp; Abuse Control
+    </button>
+    <button class="nav-item" onclick="showPage('blocklist',this)">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      Scanner Indicators
+    </button>
+    <button class="nav-item" onclick="showPage('analytics',this)">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">System</div>
+    <button class="nav-item" onclick="showPage('settings',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+    <button class="nav-item" onclick="showPage('auditlog',this)">
+      <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Audit Log
+    </button>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="admin-profile">
+      <div class="admin-avatar">AD</div>
+      <div>
+        <div class="admin-name">Admin</div>
+        <div class="admin-role">Super Administrator</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-actions">
+      <div class="topbar-search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Quick search…" id="global-search">
+      </div>
+      <div class="icon-btn" title="Notifications" onclick="showToast('No new notifications','info')">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div class="notif-dot"></div>
+      </div>
+      <a href="introduction.html" class="icon-btn" title="View site">
+        <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: DASHBOARD                    -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon blue"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <span class="stat-change up" id="dash-total-change">+47 today</span>
+        </div>
+        <div class="stat-num" id="dash-total">28,401</div>
+        <div class="stat-label">Total Reports</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon amber"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <span class="stat-change up">+12 new</span>
+        </div>
+        <div class="stat-num" id="dash-pending">12</div>
+        <div class="stat-label">Pending Review</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon red"><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+          <span class="stat-change down">5 flagged</span>
+        </div>
+        <div class="stat-num">5</div>
+        <div class="stat-label">Flagged (False Reports)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon green"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div>
+          <span class="stat-change up">↑ 94%</span>
+        </div>
+        <div class="stat-num">24,106</div>
+        <div class="stat-label">Verified Reports</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon purple"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+          <span class="stat-change up">18 blocked</span>
+        </div>
+        <div class="stat-num">47</div>
+        <div class="stat-label">Submissions Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <div class="stat-card-icon red"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+          <span class="stat-change up">+18 this wk</span>
+        </div>
+        <div class="stat-num">3,847</div>
+        <div class="stat-label">Blocked URLs</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:1.5rem;align-items:start">
+      <!-- Recent pending -->
+      <div>
+        <div class="section-header">
+          <div class="section-title">Pending Verification Queue</div>
+          <div class="section-actions">
+            <button class="btn btn-ghost btn-sm" onclick="showPage('reports',document.querySelector('[onclick*=reports]'))">View all →</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="dash-queue-table">
+            <thead><tr>
+              <th>Report</th><th>Type</th><th>Severity</th><th>Submitted</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="dash-queue-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Activity -->
+      <div>
+        <div class="section-header"><div class="section-title">Recent Admin Activity</div></div>
+        <div class="table-wrap" style="padding:0.25rem 0">
+          <div class="activity-list" id="activity-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: SCAM REPORTS                 -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-reports">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'tab-all')">All Reports</div>
+      <div class="tab" onclick="switchTab(this,'tab-pending')">Pending <span style="background:var(--amber-light);color:var(--amber);font-size:0.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px">12</span></div>
+      <div class="tab" onclick="switchTab(this,'tab-verified')">Verified</div>
+      <div class="tab" onclick="switchTab(this,'tab-removed')">Removed</div>
+    </div>
+
+    <div class="bulk-bar" id="bulk-bar">
+      <span class="bulk-count" id="bulk-count">0 selected</span>
+      <button class="btn btn-success btn-sm" onclick="bulkAction('verify')">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Verify All
+      </button>
+      <button class="btn btn-amber btn-sm" onclick="bulkAction('flag')">
+        <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> Flag All
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="bulkAction('remove')">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Remove All
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="clearSelection()" style="margin-left:auto">Cancel</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search reports…" oninput="filterReports(this.value)">
+        </div>
+        <select class="tbl-filter" onchange="filterByStatus(this.value)">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="verified">Verified</option>
+          <option value="flagged">Flagged</option>
+          <option value="removed">Removed</option>
+        </select>
+        <select class="tbl-filter" onchange="filterByType(this.value)">
+          <option value="">All Types</option>
+          <option value="phishing">Phishing</option>
+          <option value="sms">SMS/Call</option>
+          <option value="investment">Investment</option>
+          <option value="job">Job Scam</option>
+          <option value="impersonation">Impersonation</option>
+          <option value="ecommerce">E-Commerce</option>
+          <option value="love">Love Scam</option>
+          <option value="malware">Malware</option>
+        </select>
+        <select class="tbl-filter" onchange="filterBySeverity(this.value)">
+          <option value="">All Severity</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openAddModal()">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Report
+        </button>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th class="check-col"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"></th>
+          <th>Report ID</th>
+          <th>Title</th>
+          <th>Type</th>
+          <th>Severity</th>
+          <th>Status</th>
+          <th>Reported</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody id="reports-table-body"></tbody>
+      </table>
+      <div class="tbl-pagination">
+        <span id="reports-count-label">Showing 1–12 of 12</span>
+        <div class="tbl-page-btns">
+          <button class="tbl-page-btn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="tbl-page-btn active">1</button>
+          <button class="tbl-page-btn">2</button>
+          <button class="tbl-page-btn">3</button>
+          <button class="tbl-page-btn"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: FLAGGED CONTENT              -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-flagged">
+    <div class="section-header">
+      <div class="section-title">Flagged Content — Possible False Reports</div>
+      <div class="section-actions">
+        <button class="btn btn-danger btn-sm" onclick="bulkRemoveFlagged()">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Remove All Flagged
+        </button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="check-col"><input type="checkbox"></th>
+          <th>Report ID</th><th>Title</th><th>Reason Flagged</th><th>Reports Against</th><th>Submitted</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="flagged-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: SPAM & ABUSE CONTROL         -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-users">
+
+    <!-- Context banner -->
+    <div style="background:var(--accent-light);border:1px solid rgba(47,129,247,0.25);border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:12px;font-size:0.85rem;color:var(--ink-soft);line-height:1.6;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div><strong style="color:var(--ink);">All reports on ScamWatch are anonymous</strong> — no accounts required. Spam prevention relies on rate limiting by IP/fingerprint, duplicate content detection, and pattern-based abuse scoring. Admins listed below are the only accounts on this system.</div>
+    </div>
+
+    <!-- Stat row -->
+    <div class="stats-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card">
+        <div class="stat-card-top"><div class="stat-card-icon red"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg></div></div>
+        <div class="stat-num">18</div>
+        <div class="stat-label">Spam Sessions Blocked (24h)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top"><div class="stat-card-icon amber"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div></div>
+        <div class="stat-num">7</div>
+        <div class="stat-label">Duplicate Submissions Caught</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top"><div class="stat-card-icon red"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div></div>
+        <div class="stat-num">43</div>
+        <div class="stat-label">IPs Rate-Limited Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-top"><div class="stat-card-icon green"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div></div>
+        <div class="stat-num">3</div>
+        <div class="stat-label">Admin Accounts Active</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+
+      <!-- Left: Spam submissions -->
+      <div>
+        <div class="section-header">
+          <div class="section-title">Flagged Spam Submissions</div>
+          <div class="section-actions">
+            <button class="btn btn-danger btn-sm" onclick="clearAllSpam()">
+              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              Clear All
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Session Token</th><th>Reason</th><th>Count</th><th>Time</th><th>Action</th>
+            </tr></thead>
+            <tbody id="spam-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right: Rate Limit Rules + Admin accounts -->
+      <div style="display:flex;flex-direction:column;gap:1.5rem">
+
+        <!-- Rate limit rules -->
+        <div>
+          <div class="section-header"><div class="section-title">Rate Limit Rules</div></div>
+          <div class="table-wrap" style="padding:1.25rem 1.5rem">
+            <div style="display:flex;flex-direction:column;gap:1rem">
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+                <div>
+                  <div style="font-size:0.85rem;font-weight:600;color:var(--ink);margin-bottom:2px">Max reports per IP / 1 hour</div>
+                  <div style="font-size:0.75rem;color:var(--ink-muted)">Anonymous submissions — IP fingerprint only</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input id="rate-ip" type="number" value="5" style="width:60px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.35rem 0.5rem;color:var(--ink);font-family:var(--font-body);font-size:0.85rem;text-align:center;outline:none;">
+                  <span style="font-size:0.75rem;color:var(--ink-muted)">reports</span>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+                <div>
+                  <div style="font-size:0.85rem;font-weight:600;color:var(--ink);margin-bottom:2px">Cooldown after limit hit</div>
+                  <div style="font-size:0.75rem;color:var(--ink-muted)">Block further submissions for this duration</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input id="rate-cooldown" type="number" value="60" style="width:60px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.35rem 0.5rem;color:var(--ink);font-family:var(--font-body);font-size:0.85rem;text-align:center;outline:none;">
+                  <span style="font-size:0.75rem;color:var(--ink-muted)">minutes</span>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+                <div>
+                  <div style="font-size:0.85rem;font-weight:600;color:var(--ink);margin-bottom:2px">Duplicate content threshold</div>
+                  <div style="font-size:0.75rem;color:var(--ink-muted)">Flag if same title/URL submitted within</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input id="rate-dupe" type="number" value="24" style="width:60px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.35rem 0.5rem;color:var(--ink);font-family:var(--font-body);font-size:0.85rem;text-align:center;outline:none;">
+                  <span style="font-size:0.75rem;color:var(--ink-muted)">hours</span>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+                <div>
+                  <div style="font-size:0.85rem;font-weight:600;color:var(--ink);margin-bottom:2px">Require CAPTCHA after N reports</div>
+                  <div style="font-size:0.75rem;color:var(--ink-muted)">Trigger CAPTCHA challenge per session</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input id="rate-captcha" type="number" value="3" style="width:60px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.35rem 0.5rem;color:var(--ink);font-family:var(--font-body);font-size:0.85rem;text-align:center;outline:none;">
+                  <span style="font-size:0.75rem;color:var(--ink-muted)">reports</span>
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-sm" onclick="saveRateRules()" style="align-self:flex-start">Save Rules</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin accounts -->
+        <div>
+          <div class="section-header">
+            <div class="section-title">Admin Accounts</div>
+            <div class="section-actions">
+              <button class="btn btn-primary btn-sm" onclick="showToast('Invite sent — connect to backend','info')">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Admin
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Admin</th><th>Role</th><th>Last Login</th><th>Actions</th></tr></thead>
+              <tbody id="admins-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: SCANNER INDICATORS           -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-blocklist">
+
+    <!-- Context banner -->
+    <div style="background:var(--accent-light);border:1px solid rgba(47,129,247,0.25);border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:12px;font-size:0.85rem;color:var(--ink-soft);line-height:1.6;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap: "round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div><strong style="color:var(--ink);">What is this?</strong> — When someone uses the ScamWatch scanner to check a URL or phone number, it looks up this list. These are the <em>confirmed</em> scam indicators extracted from verified reports. Admins manually promote entries here after verifying a report. The scanner app queries <code style="background:rgba(255,255,255,0.15);padding:1px 5px;border-radius:4px;font-size:0.8rem">/api/scanner/check</code> against this table.</div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon red"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><span class="stat-change up">+18 this wk</span></div><div class="stat-num" id="ind-url-count">3,847</div><div class="stat-label">Confirmed Scam URLs</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon amber"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4 19.79 19.79 0 0 1 1.56 4.83 2 2 0 0 1 3.53 2.63h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><span class="stat-change up">+6 this wk</span></div><div class="stat-num">1,204</div><div class="stat-label">Confirmed Scam Numbers</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon green"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span class="stat-change up">↑ 2,341 today</span></div><div class="stat-num">128,440</div><div class="stat-label">Scanner Lookups Today</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon red"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg></div><span class="stat-change down">893 today</span></div><div class="stat-num">893</div><div class="stat-label">Scam Matches Caught Today</div></div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Confirmed Scam Indicators</div>
+      <div class="section-actions">
+        <button class="btn btn-ghost btn-sm" onclick="showToast('Exported as CSV','success')">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openBlocklistAddModal()">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Indicator
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search URLs, domains, numbers…" oninput="filterIndicators(this.value)">
+        </div>
+        <select class="tbl-filter" onchange="filterIndicatorType(this.value)">
+          <option value="">All Types</option>
+          <option value="URL">URL</option>
+          <option value="Domain">Domain</option>
+          <option value="Phone">Phone Number</option>
+          <option value="Email Domain">Email Domain</option>
+        </select>
+        <select class="tbl-filter" onchange="filterIndicatorSource(this.value)">
+          <option value="">All Sources</option>
+          <option value="auto">Auto (from verified report)</option>
+          <option value="manual">Manual (admin added)</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr>
+          <th class="check-col"><input type="checkbox"></th>
+          <th>Indicator</th>
+          <th>Type</th>
+          <th>Linked Report</th>
+          <th>Source</th>
+          <th>Scam Hits</th>
+          <th>Added</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody id="blocklist-table-body"></tbody>
+      </table>
+      <div class="tbl-pagination">
+        <span id="ind-count-label">Showing 1–8 of 8</span>
+        <div class="tbl-page-btns">
+          <button class="tbl-page-btn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="tbl-page-btn active">1</button>
+          <button class="tbl-page-btn"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: ANALYTICS                    -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-analytics">
+    <div class="stats-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon blue"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div><div class="stat-num">312</div><div class="stat-label">Reports This Week</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon green"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div><div class="stat-num">94%</div><div class="stat-label">Verification Rate</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon amber"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div></div><div class="stat-num">4.2 min</div><div class="stat-label">Avg. Review Time</div></div>
+      <div class="stat-card"><div class="stat-card-top"><div class="stat-card-icon red"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div></div><div class="stat-num">1,847</div><div class="stat-label">Active Threats</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+      <div class="table-wrap" style="padding:1.5rem">
+        <div class="section-title" style="margin-bottom:1rem">Top Scam Types (This Month)</div>
+        <div id="type-bars"></div>
+      </div>
+      <div class="table-wrap" style="padding:1.5rem">
+        <div class="section-title" style="margin-bottom:1rem">Top Platforms Targeted</div>
+        <div id="platform-bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: SETTINGS                     -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-settings">
+    <div style="max-width:680px;display:flex;flex-direction:column;gap:1.5rem">
+      <div class="table-wrap" style="padding:1.5rem">
+        <div class="section-title" style="margin-bottom:1.25rem">General Settings</div>
+        <div class="form-group">
+          <label class="form-label">Site Name</label>
+          <input class="form-input" value="ScamWatch">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Admin Contact Email</label>
+          <input class="form-input" type="email" value="admin@scamwatch.sg">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reports require approval before going live</label>
+          <select class="form-input">
+            <option>Yes — manual review required</option>
+            <option>No — auto-publish verified reports</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Changes</button>
+      </div>
+      <div class="table-wrap" style="padding:1.5rem">
+        <div class="section-title" style="margin-bottom:1.25rem">Auto-Moderation Rules</div>
+        <div class="form-group">
+          <label class="form-label">Auto-flag report if reported by users &lt;</label>
+          <input class="form-input" type="number" value="3" style="max-width:120px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Auto-verify report if reported by users ≥</label>
+          <input class="form-input" type="number" value="10" style="max-width:120px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Block URL automatically when report count ≥</label>
+          <input class="form-input" type="number" value="5" style="max-width:120px">
+        </div>
+        <button class="btn btn-primary" onclick="showToast('Auto-moderation rules saved','success')">Save Rules</button>
+      </div>
+      <div class="table-wrap" style="padding:1.5rem;border-color:rgba(248,81,73,0.3)">
+        <div class="section-title" style="margin-bottom:1rem;color:var(--red)">Danger Zone</div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:var(--ink);margin-bottom:2px">Purge removed reports</div>
+              <div style="font-size:0.78rem;color:var(--ink-muted)">Permanently delete all reports marked as removed</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="confirmDanger('purge_removed')">Purge</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)">
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:var(--ink);margin-bottom:2px">Clear pending queue</div>
+              <div style="font-size:0.78rem;color:var(--ink-muted)">Remove all unreviewed reports from queue</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="confirmDanger('clear_pending')">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: AUDIT LOG                    -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-auditlog">
+    <div class="section-header">
+      <div class="section-title">Audit Log</div>
+      <div class="section-actions">
+        <button class="btn btn-ghost btn-sm" onclick="showToast('Log exported as CSV','success')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+        <tbody id="audit-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══════════════════════════════════ -->
+<!-- MODALS                             -->
+<!-- ══════════════════════════════════ -->
+
+<!-- Review / Edit Report Modal -->
+<div class="modal-overlay" id="modal-review">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="review-modal-title">Review Report</div>
+      <button class="modal-close" onclick="closeModal('modal-review')"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="info-row" id="review-info-grid"></div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-input" id="review-desc" rows="4"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label class="form-label">Severity</label>
+          <select class="form-input" id="review-severity">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-input" id="review-status">
+            <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+            <option value="flagged">Flagged (False Report)</option>
+            <option value="removed">Removed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Admin Notes <span style="font-weight:400;text-transform:none;letter-spacing:0">(internal only)</span></label>
+        <textarea class="form-input" id="review-notes" placeholder="Add internal notes about this report…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-review')">Cancel</button>
+      <button class="btn btn-danger" onclick="actionReport('remove')">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Remove
+      </button>
+      <button class="btn btn-success" onclick="actionReport('verify')">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        Verify & Publish
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title">Confirm Action</div>
+      <button class="modal-close" onclick="closeModal('modal-confirm')"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="danger-box" style="margin-bottom:1rem">
+        <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+        <div id="confirm-message">This action cannot be undone. Are you sure you want to proceed?</div>
+      </div>
+      <p style="font-size:0.85rem;color:var(--ink-muted)">Type <strong style="color:var(--red)">CONFIRM</strong> to proceed:</p>
+      <input class="form-input" id="confirm-input" placeholder="Type CONFIRM…" style="margin-top:0.5rem">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn btn-danger" id="confirm-proceed-btn" onclick="proceedConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Indicator Modal -->
+<div class="modal-overlay" id="modal-blocklist">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">Add Scanner Indicator</div>
+      <button class="modal-close" onclick="closeModal('modal-blocklist')"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.85rem 1rem;font-size:0.82rem;color:var(--ink-muted);margin-bottom:1.25rem;line-height:1.6;">
+        Adding an indicator here means the <strong style="color:var(--ink)">ScamWatch scanner</strong> will flag this URL, domain, or number when anyone checks it. Only add confirmed scam indicators — preferably ones already linked to a verified report.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Indicator Type</label>
+        <select class="form-input" id="block-type">
+          <option value="URL">URL</option>
+          <option value="Domain">Domain</option>
+          <option value="Phone">Phone Number</option>
+          <option value="Email Domain">Email Domain</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Value</label>
+        <input class="form-input" id="block-value" placeholder="e.g. fake-ocbc-login.xyz or +65 9123 4567">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Linked Report ID <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-muted)">(optional but recommended)</span></label>
+        <input class="form-input" id="block-reason" placeholder="e.g. SS-2025-47201">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-blocklist')">Cancel</button>
+      <button class="btn btn-primary" onclick="addToBlocklist()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add to Scanner
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toast-icon">✓</div>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// API BASE — update to your Flask backend
+// ─────────────────────────────────────────
+const API = '/api';
+/*
+  Backend endpoints expected:
+  GET    /api/admin/stats
+  GET    /api/admin/reports?status=&type=&severity=&search=&page=
+  PATCH  /api/admin/reports/:id  { status: 'verified'|'flagged'|'removed' }
+  DELETE /api/admin/reports/:id
+  GET    /api/admin/reports/flagged
+  GET    /api/admin/users
+  PATCH  /api/admin/users/:id   { status: 'suspended'|'banned'|'active', role: '...' }
+  GET    /api/admin/blocklist
+  POST   /api/admin/blocklist   { type, value, reason }
+  DELETE /api/admin/blocklist/:id
+  GET    /api/admin/audit-log
+  GET    /api/admin/analytics
+*/
+
+// ─────────────────────────────────────────
+// MOCK DATA
+// ─────────────────────────────────────────
+const MOCK_REPORTS = [
+  {id:1,report_id:'SS-2025-47201',title:'Fake OCBC Bank Login Page',type:'phishing',severity:'high',status:'verified',url:'ocbc-verify-login.xyz',created_at:'2025-05-30T14:22:00',report_count:142},
+  {id:2,report_id:'SS-2025-47198',title:'Part-time "Like & Follow" Job Scam',type:'job',severity:'high',status:'pending',url:null,created_at:'2025-05-30T11:05:00',report_count:89},
+  {id:3,report_id:'SS-2025-47186',title:'SingPass Account Suspension SMS',type:'impersonation',severity:'high',status:'verified',url:'singpass-secure-verify.net',created_at:'2025-05-29T09:14:00',report_count:211},
+  {id:4,report_id:'SS-2025-47170',title:'Crypto Investment Telegram Group',type:'investment',severity:'high',status:'pending',url:null,created_at:'2025-05-28T16:40:00',report_count:67},
+  {id:5,report_id:'SS-2025-47155',title:'Fake Carousell Buyer Overpayment',type:'ecommerce',severity:'medium',status:'verified',url:null,created_at:'2025-05-28T10:55:00',report_count:38},
+  {id:6,report_id:'SS-2025-47140',title:'DHL Parcel Customs Fee Email',type:'phishing',severity:'medium',status:'pending',url:'dhl-delivery-sg-customs.com',created_at:'2025-05-27T15:30:00',report_count:55},
+  {id:7,report_id:'SS-2025-47129',title:'Romance Scam via Facebook Dating',type:'love',severity:'high',status:'flagged',url:null,created_at:'2025-05-27T08:20:00',report_count:12},
+  {id:8,report_id:'SS-2025-47110',title:'Fake SGDeals App APK',type:'malware',severity:'high',status:'verified',url:'sgdeals-app.top/download',created_at:'2025-05-26T12:45:00',report_count:29},
+  {id:9,report_id:'SS-2025-47098',title:'"You have a parcel" Phishing SMS',type:'sms',severity:'medium',status:'verified',url:'parcels-sg-redeliver.com',created_at:'2025-05-25T17:10:00',report_count:183},
+  {id:10,report_id:'SS-2025-47080',title:'SPF Police Impersonation Call',type:'impersonation',severity:'high',status:'verified',url:null,created_at:'2025-05-25T09:00:00',report_count:44},
+  {id:11,report_id:'SS-2025-47055',title:'Forex "Guaranteed Profits" WhatsApp Group',type:'investment',severity:'medium',status:'pending',url:null,created_at:'2025-05-24T14:55:00',report_count:19},
+  {id:12,report_id:'SS-2025-47030',title:'Shopee Fake Electronics Seller',type:'ecommerce',severity:'low',status:'flagged',url:null,created_at:'2025-05-24T10:20:00',report_count:27},
+];
+const MOCK_FLAGGED=[
+  {id:7,report_id:'SS-2025-47129',title:'Romance Scam via Facebook Dating',reason:'Only 1 report, unverifiable claims',reports_against:3,created_at:'2025-05-27T08:20:00'},
+  {id:12,report_id:'SS-2025-47030',title:'Shopee Fake Electronics Seller',reason:'Seller confirmed legitimate — buyer error',reports_against:5,created_at:'2025-05-24T10:20:00'},
+  {id:13,report_id:'SS-2025-46990',title:'Free NTUC Voucher WhatsApp',reason:'Link found to be real promotion',reports_against:2,created_at:'2025-05-23T11:30:00'},
+  {id:14,report_id:'SS-2025-46955',title:'Investment bot spam message',reason:'Duplicate report, already logged',reports_against:1,created_at:'2025-05-22T09:00:00'},
+  {id:15,report_id:'SS-2025-46930',title:'MAS financial advisory cold call',reason:'MAS confirmed call was legitimate',reports_against:4,created_at:'2025-05-21T14:45:00'},
+];
+const MOCK_SPAM=[
+  {token:'sess_a3f9b1',reason:'5 submissions in 12 min (rate limit hit)',count:5,time:'8m ago'},
+  {token:'sess_c72de4',reason:'Duplicate URL submitted 3× in 1 hour',count:3,time:'22m ago'},
+  {token:'sess_88fa02',reason:'Identical description text across 4 reports',count:4,time:'45m ago'},
+  {token:'sess_11dc77',reason:'Non-SG IP submitting high-volume reports',count:9,time:'1h ago'},
+  {token:'sess_5b3e90',reason:'CAPTCHA failed 3 consecutive times',count:3,time:'2h ago'},
+  {token:'sess_f04ab2',reason:'Gibberish/test content detected by filter',count:2,time:'3h ago'},
+  {token:'sess_d19cc5',reason:'Known VPN/proxy exit node IP flagged',count:1,time:'5h ago'},
+];
+const MOCK_ADMINS=[
+  {name:'Admin',email:'admin@scamwatch.sg',role:'Super Admin',last_login:'Just now',initials:'AD'},
+  {name:'Sarah Tan',email:'sarah.t@scamwatch.sg',role:'Moderator',last_login:'2h ago',initials:'ST'},
+  {name:'Marcus Lim',email:'m.lim@scamwatch.sg',role:'Analyst',last_login:'Yesterday',initials:'ML'},
+];
+const MOCK_BLOCKLIST=[
+  {id:1,value:'ocbc-verify-login.xyz',type:'URL',report_id:'SS-2025-47201',source:'auto',hits:142,date:'2025-05-30'},
+  {id:2,value:'singpass-secure-verify.net',type:'URL',report_id:'SS-2025-47186',source:'auto',hits:211,date:'2025-05-29'},
+  {id:3,value:'+65 8123 4567',type:'Phone',report_id:'SS-2025-47198',source:'auto',hits:89,date:'2025-05-28'},
+  {id:4,value:'dhl-delivery-sg-customs.com',type:'Domain',report_id:'SS-2025-47140',source:'auto',hits:55,date:'2025-05-27'},
+  {id:5,value:'sgdeals-app.top',type:'Domain',report_id:'SS-2025-47110',source:'auto',hits:29,date:'2025-05-26'},
+  {id:6,value:'parcels-sg-redeliver.com',type:'Domain',report_id:'SS-2025-47098',source:'auto',hits:183,date:'2025-05-25'},
+  {id:7,value:'+65 9876 5432',type:'Phone',report_id:'SS-2025-47155',source:'manual',hits:38,date:'2025-05-24'},
+  {id:8,value:'fake-mas-invest.sg',type:'Domain',report_id:null,source:'manual',hits:14,date:'2025-05-23'},
+];
+const MOCK_AUDIT=[
+  {ts:'2025-05-30 14:35',admin:'Admin',action:'Verified',target:'SS-2025-47201',detail:'Fake OCBC Bank Login Page'},
+  {ts:'2025-05-30 13:10',admin:'Sarah Tan',action:'Flagged',target:'SS-2025-47129',detail:'Romance Scam — unverifiable'},
+  {ts:'2025-05-30 11:22',admin:'Admin',action:'Blocked URL',target:'ocbc-verify-login.xyz',detail:'Added to blocklist'},
+  {ts:'2025-05-29 16:00',admin:'Marcus Lim',action:'Removed',target:'SS-2025-46800',detail:'False report — confirmed legitimate'},
+  {ts:'2025-05-29 09:30',admin:'Admin',action:'Verified',target:'SS-2025-47186',detail:'SingPass Suspension SMS'},
+  {ts:'2025-05-28 17:45',admin:'Sarah Tan',action:'Suspended User',target:'user#5',detail:'Multiple false reports submitted'},
+  {ts:'2025-05-28 14:00',admin:'Admin',action:'Bulk Verified',target:'4 reports',detail:'Batch verification of investment scams'},
+  {ts:'2025-05-27 10:15',admin:'Marcus Lim',action:'Blocked URL',target:'sgdeals-app.top',detail:'Malware distribution site'},
+];
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let selectedRows = new Set();
+let currentReportId = null;
+let pendingAction = null;
+let reportsData = [...MOCK_REPORTS];
+
+// ─────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────
+const pageTitles = {dashboard:'Dashboard',reports:'Scam Reports',flagged:'Flagged Content',users:'Spam & Abuse Control',blocklist:'Scanner Indicators',analytics:'Analytics',settings:'Settings',auditlog:'Audit Log'};
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  document.getElementById('topbar-title').textContent = pageTitles[name]||name;
+  if(name==='reports') renderReportsTable();
+  if(name==='flagged') renderFlaggedTable();
+  if(name==='users') { renderSpamTable(); renderAdminsTable(); }
+  if(name==='blocklist') renderBlocklistTable();
+  if(name==='analytics') renderAnalytics();
+  if(name==='auditlog') renderAuditLog();
+}
+function switchTab(el,tabId){
+  el.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const statusMap={
+    'tab-all':'','tab-pending':'pending','tab-verified':'verified','tab-removed':'removed'
+  };
+  if(tabId in statusMap) { filterByStatus(statusMap[tabId]); }
+}
+
+// ─────────────────────────────────────────
+// RENDER REPORTS TABLE
+// ─────────────────────────────────────────
+const TYPE_ICONS={phishing:'🎣',sms:'📱',investment:'📈',ecommerce:'🛒',impersonation:'🎭',job:'💼',love:'💔',malware:'🦠',other:'❓'};
+function timeAgo(dt){const d=(Date.now()-new Date(dt))/1000;if(d<3600)return Math.floor(d/60)+'m ago';if(d<86400)return Math.floor(d/3600)+'h ago';return Math.floor(d/86400)+'d ago';}
+function fmtDate(dt){return new Date(dt).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'});}
+
+function renderReportsTable(data) {
+  const tbody = document.getElementById('reports-table-body');
+  const rows = data || reportsData;
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">No reports found</div><p>Try adjusting your filters.</p></div></td></tr>`;return;}
+  tbody.innerHTML = rows.map(r => `
+    <tr id="row-${r.id}" class="${selectedRows.has(r.id)?'selected':''}">
+      <td><input type="checkbox" ${selectedRows.has(r.id)?'checked':''} onchange="toggleRow(${r.id},this)"></td>
+      <td><span class="td-mono">${r.report_id}</span></td>
+      <td><span class="td-main">${r.title}</span>${r.url?`<div class="td-url">🔗 ${r.url}</div>`:''}</td>
+      <td><span class="type-pill">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
+      <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
+      <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      <td>${timeAgo(r.created_at)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openReviewModal(${r.id})" title="Review">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Review
+          </button>
+          <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')" title="Verify">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="quickAction(${r.id},'remove')" title="Remove">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+  document.getElementById('reports-count-label').textContent=`Showing 1–${rows.length} of ${rows.length}`;
+}
+
+function renderFlaggedTable(){
+  const tbody=document.getElementById('flagged-table-body');
+  tbody.innerHTML=MOCK_FLAGGED.map(r=>`
+    <tr>
+      <td><input type="checkbox"></td>
+      <td><span class="td-mono">${r.report_id}</span></td>
+      <td><span class="td-main">${r.title}</span></td>
+      <td style="color:var(--amber);font-size:0.82rem">${r.reason}</td>
+      <td><span class="badge badge-flagged">${r.reports_against} complaints</span></td>
+      <td>${fmtDate(r.created_at)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-success btn-sm" onclick="restoreReport(${r.id})">Restore</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteReport(${r.id})">Remove</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function renderSpamTable(){
+  const tbody=document.getElementById('spam-table-body');
+  if(!tbody) return;
+  if(!MOCK_SPAM.length){tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">No spam sessions</div><p>All clear — no abuse detected.</p></div></td></tr>`;return;}
+  tbody.innerHTML=MOCK_SPAM.map((s,i)=>`
+    <tr>
+      <td><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-muted)">${s.token}</span></td>
+      <td style="font-size:0.8rem;color:var(--amber);max-width:220px">${s.reason}</td>
+      <td><span class="badge badge-flagged">${s.count}×</span></td>
+      <td style="font-size:0.78rem;color:var(--ink-muted)">${s.time}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-danger btn-sm" onclick="dismissSpam(${i})">Dismiss</button>
+          <button class="btn btn-amber btn-sm" onclick="blockSpamIP(${i})">Block IP</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function renderAdminsTable(){
+  const tbody=document.getElementById('admins-table-body');
+  if(!tbody) return;
+  tbody.innerHTML=MOCK_ADMINS.map((a,i)=>`
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">${a.initials}</div>
+          <div><div style="font-size:0.85rem;font-weight:600;color:var(--ink)">${a.name}</div><div style="font-size:0.72rem;color:var(--ink-muted)">${a.email}</div></div>
+        </div>
+      </td>
+      <td><span class="badge ${a.role==='Super Admin'?'badge-verified':a.role==='Moderator'?'badge-active':'badge-pending'}">${a.role}</span></td>
+      <td style="font-size:0.82rem;color:var(--ink-muted)">${a.last_login}</td>
+      <td>
+        <div class="row-actions">
+          ${i>0?`<button class="btn btn-ghost btn-sm" onclick="showToast('Edit role — connect to backend','info')">Edit Role</button><button class="btn btn-danger btn-sm" onclick="removeAdmin(${i})">Remove</button>`:'<span style="font-size:0.75rem;color:var(--ink-muted)">Owner</span>'}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+let indFilterSearch='', indFilterType='', indFilterSource='';
+function getFilteredIndicators(){
+  let d=[...MOCK_BLOCKLIST];
+  if(indFilterSearch){const q=indFilterSearch.toLowerCase();d=d.filter(b=>b.value.toLowerCase().includes(q)||(b.report_id&&b.report_id.toLowerCase().includes(q)));}
+  if(indFilterType) d=d.filter(b=>b.type===indFilterType);
+  if(indFilterSource) d=d.filter(b=>b.source===indFilterSource);
+  return d;
+}
+function filterIndicators(v){indFilterSearch=v;renderBlocklistTable();}
+function filterIndicatorType(v){indFilterType=v;renderBlocklistTable();}
+function filterIndicatorSource(v){indFilterSource=v;renderBlocklistTable();}
+
+function renderBlocklistTable(){
+  const tbody=document.getElementById('blocklist-table-body');
+  if(!tbody) return;
+  const data=getFilteredIndicators();
+  const countEl=document.getElementById('ind-count-label');
+  if(countEl) countEl.textContent=`Showing 1–${data.length} of ${data.length}`;
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">No indicators found</div><p>Try adjusting your filters.</p></div></td></tr>`;return;}
+  tbody.innerHTML=data.map(b=>`
+    <tr>
+      <td><input type="checkbox"></td>
+      <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--red);">${b.type==='Phone'?'📞':'🔗'} ${b.value}</span></td>
+      <td><span class="badge badge-flagged">${b.type}</span></td>
+      <td>${b.report_id?`<span class="td-mono" style="cursor:pointer;color:var(--accent);" title="View source report">${b.report_id}</span>`:`<span style="font-size:0.75rem;color:var(--ink-muted)">Manual entry</span>`}</td>
+      <td><span class="badge ${b.source==='auto'?'badge-verified':'badge-active'}">${b.source==='auto'?'Auto':'Manual'}</span></td>
+      <td><span style="font-size:0.85rem;font-weight:600;color:var(--ink)">${b.hits}</span> <span style="font-size:0.72rem;color:var(--ink-muted)">hits</span></td>
+      <td style="font-size:0.8rem;color:var(--ink-muted)">${b.date}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-danger btn-sm" onclick="removeFromBlocklist(${b.id})" title="Remove — scanner will no longer flag this">Remove</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function renderAuditLog(){
+  const tbody=document.getElementById('audit-table-body');
+  const actionColors={Verified:'var(--green)',Removed:'var(--red)',Flagged:'var(--amber)','Blocked URL':'var(--red)','Suspended User':'var(--amber)','Bulk Verified':'var(--green)'};
+  tbody.innerHTML=MOCK_AUDIT.map(a=>`
+    <tr>
+      <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-muted)">${a.ts}</span></td>
+      <td style="font-size:0.85rem;font-weight:600">${a.admin}</td>
+      <td><span style="font-size:0.82rem;font-weight:600;color:${actionColors[a.action]||'var(--ink-soft)'}">${a.action}</span></td>
+      <td><span class="td-mono">${a.target}</span></td>
+      <td style="font-size:0.82rem;color:var(--ink-soft)">${a.detail}</td>
+    </tr>`).join('');
+}
+
+function renderAnalytics(){
+  const types=[{l:'Phishing',v:38},{l:'SMS/Call',v:24},{l:'Investment',v:18},{l:'Job Scam',v:12},{l:'Impersonation',v:8}];
+  const platforms=[{l:'WhatsApp',v:45},{l:'SMS',v:28},{l:'Telegram',v:14},{l:'Email',v:9},{l:'Carousell',v:4}];
+  const renderBars=(el,items,color)=>{
+    document.getElementById(el).innerHTML=items.map(i=>`
+      <div style="margin-bottom:0.85rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px">
+          <span style="color:var(--ink-soft)">${i.l}</span>
+          <span style="font-weight:600;color:var(--ink)">${i.v}%</span>
+        </div>
+        <div style="height:8px;background:var(--surface3);border-radius:999px;overflow:hidden">
+          <div style="height:100%;width:${i.v}%;background:${color};border-radius:999px;transition:width 0.6s ease"></div>
+        </div>
+      </div>`).join('');
+  };
+  renderBars('type-bars',types,'var(--accent)');
+  renderBars('platform-bars',platforms,'var(--green)');
+}
+
+function renderDashboardQueue(){
+  const pending=reportsData.filter(r=>r.status==='pending').slice(0,5);
+  const tbody=document.getElementById('dash-queue-body');
+  tbody.innerHTML=pending.map(r=>`
+    <tr>
+      <td><span class="td-main" style="font-size:0.83rem">${r.title}</span></td>
+      <td><span class="type-pill" style="font-size:0.75rem">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
+      <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
+      <td style="font-size:0.78rem;color:var(--ink-muted)">${timeAgo(r.created_at)}</td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')">✓</button>
+          <button class="btn btn-danger btn-sm" onclick="quickAction(${r.id},'remove')">✕</button>
+          <button class="btn btn-ghost btn-sm" onclick="openReviewModal(${r.id})">Review</button>
+        </div>
+      </td>
+    </tr>`).join('');
+  if(!pending.length) tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state" style="padding:2rem"><div class="empty-state-icon">🎉</div><div class="empty-state-title">Queue is clear!</div></div></td></tr>`;
+}
+
+function renderActivityFeed(){
+  const feed=[
+    {color:'var(--green)',text:'<strong>Admin</strong> verified <strong>SS-2025-47201</strong>',time:'2m ago'},
+    {color:'var(--amber)',text:'<strong>Sarah Tan</strong> flagged <strong>SS-2025-47129</strong> as false report',time:'28m ago'},
+    {color:'var(--red)',text:'<strong>Admin</strong> blocked URL <strong>ocbc-verify-login.xyz</strong>',time:'1h ago'},
+    {color:'var(--accent)',text:'<strong>12 new reports</strong> submitted by community',time:'2h ago'},
+    {color:'var(--amber)',text:'<strong>Marcus Lim</strong> suspended user <strong>abuse123</strong>',time:'3h ago'},
+    {color:'var(--green)',text:'<strong>Sarah Tan</strong> verified <strong>SS-2025-47186</strong>',time:'5h ago'},
+  ];
+  document.getElementById('activity-list').innerHTML=feed.map(f=>`
+    <div class="activity-item">
+      <div class="activity-dot" style="background:${f.color}"></div>
+      <div class="activity-text">${f.text}</div>
+      <div class="activity-time">${f.time}</div>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────
+// SELECTION
+// ─────────────────────────────────────────
+function toggleRow(id,cb){
+  if(cb.checked) selectedRows.add(id); else selectedRows.delete(id);
+  const row=document.getElementById('row-'+id);
+  if(row) row.classList.toggle('selected',cb.checked);
+  updateBulkBar();
+}
+function toggleSelectAll(cb){
+  const checkboxes=document.querySelectorAll('#reports-table-body input[type=checkbox]');
+  checkboxes.forEach((c,i)=>{c.checked=cb.checked;const id=reportsData[i]?.id;if(id){if(cb.checked)selectedRows.add(id);else selectedRows.delete(id);}});
+  document.querySelectorAll('#reports-table-body tr').forEach(r=>r.classList.toggle('selected',cb.checked));
+  updateBulkBar();
+}
+function updateBulkBar(){
+  const bar=document.getElementById('bulk-bar');
+  const n=selectedRows.size;
+  bar.classList.toggle('show',n>0);
+  document.getElementById('bulk-count').textContent=`${n} report${n!==1?'s':''} selected`;
+}
+function clearSelection(){
+  selectedRows.clear();
+  document.querySelectorAll('#reports-table-body input[type=checkbox]').forEach(c=>c.checked=false);
+  document.querySelectorAll('#reports-table-body tr').forEach(r=>r.classList.remove('selected'));
+  document.getElementById('select-all').checked=false;
+  updateBulkBar();
+}
+
+// ─────────────────────────────────────────
+// ACTIONS
+// ─────────────────────────────────────────
+/*
+ * Real backend call pattern:
+ * fetch(`${API}/admin/reports/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'verified'}) })
+ */
+function quickAction(id, action){
+  const r=reportsData.find(x=>x.id===id);
+  if(!r) return;
+  if(action==='verify') r.status='verified';
+  else if(action==='remove') r.status='removed';
+  const msgs={verify:'Report verified and published ✓',remove:'Report removed from database'};
+  showToast(msgs[action]||'Done', action==='verify'?'success':'error');
+  logAudit('Admin', action==='verify'?'Verified':'Removed', r.report_id, r.title);
+  renderReportsTable();
+  renderDashboardQueue();
+  updateBadges();
+  closeModal('modal-review');
+}
+
+function bulkAction(action){
+  const ids=[...selectedRows];
+  ids.forEach(id=>{ const r=reportsData.find(x=>x.id===id); if(r){ if(action==='verify') r.status='verified'; else if(action==='flag') r.status='flagged'; else if(action==='remove') r.status='removed'; }});
+  const msgs={verify:`${ids.length} reports verified`,flag:`${ids.length} reports flagged`,remove:`${ids.length} reports removed`};
+  const types={verify:'success',flag:'info',remove:'error'};
+  showToast(msgs[action], types[action]);
+  logAudit('Admin','Bulk '+action.charAt(0).toUpperCase()+action.slice(1),ids.length+' reports','Bulk action');
+  clearSelection();
+  renderReportsTable();
+  renderDashboardQueue();
+  updateBadges();
+}
+
+function openReviewModal(id){
+  const r=reportsData.find(x=>x.id===id);
+  if(!r) return;
+  currentReportId=id;
+  document.getElementById('review-modal-title').textContent='Review: '+r.report_id;
+  document.getElementById('review-info-grid').innerHTML=`
+    <div class="info-item"><div class="info-key">Type</div><div class="info-val">${r.type}</div></div>
+    <div class="info-item"><div class="info-key">Reports</div><div class="info-val">${r.report_count}</div></div>
+    ${r.url?`<div class="info-item" style="grid-column:span 2"><div class="info-key">URL</div><div class="info-val" style="color:var(--red);font-family:var(--font-mono);font-size:0.82rem">⛔ ${r.url}</div></div>`:''}
+    <div class="info-item"><div class="info-key">Submitted</div><div class="info-val">${fmtDate(r.created_at)}</div></div>
+    <div class="info-item"><div class="info-key">Platform</div><div class="info-val">${r.platform||'—'}</div></div>`;
+  document.getElementById('review-desc').value = r.description||r.title;
+  document.getElementById('review-severity').value = r.severity;
+  document.getElementById('review-status').value = r.status;
+  document.getElementById('review-notes').value = '';
+  openModal('modal-review');
+}
+
+function actionReport(action){
+  if(!currentReportId) return;
+  const status = document.getElementById('review-status').value;
+  const severity = document.getElementById('review-severity').value;
+  const r = reportsData.find(x=>x.id===currentReportId);
+  if(r){ r.status = action==='verify' ? 'verified' : action==='remove' ? 'removed' : status; r.severity=severity; }
+  showToast(action==='verify'?'Report verified and published':'Report removed','success');
+  closeModal('modal-review');
+  renderReportsTable();
+  renderDashboardQueue();
+  updateBadges();
+}
+
+function deleteReport(id){
+  reportsData = reportsData.filter(x=>x.id!==id);
+  showToast('Report permanently deleted','error');
+  renderReportsTable();
+  renderFlaggedTable();
+  renderDashboardQueue();
+  updateBadges();
+}
+
+function restoreReport(id){
+  const r = reportsData.find(x=>x.id===id);
+  if(r){ r.status='pending'; showToast('Report restored to pending queue','success'); renderFlaggedTable(); renderDashboardQueue(); updateBadges(); }
+}
+
+function bulkRemoveFlagged(){
+  const flaggedIds = MOCK_FLAGGED.map(f=>f.id);
+  flaggedIds.forEach(id=>{ reportsData=reportsData.filter(x=>x.id!==id); });
+  showToast('All flagged reports removed','error');
+  renderFlaggedTable();
+  updateBadges();
+}
+
+function dismissSpam(i){MOCK_SPAM.splice(i,1);showToast('Spam session dismissed','success');renderSpamTable();}
+function blockSpamIP(i){showToast('IP blocked and session dismissed','error');MOCK_SPAM.splice(i,1);renderSpamTable();}
+function clearAllSpam(){MOCK_SPAM.length=0;showToast('All spam sessions cleared','success');renderSpamTable();}
+function removeAdmin(i){if(i===0){showToast('Cannot remove owner account','error');return;}MOCK_ADMINS.splice(i,1);showToast('Admin account removed','success');renderAdminsTable();}
+function saveRateRules(){showToast('Rate limit rules saved — connect to backend to persist','success');}
+
+function removeFromBlocklist(id){MOCK_BLOCKLIST.splice(MOCK_BLOCKLIST.findIndex(x=>x.id===id),1);showToast('Entry removed from blocklist','success');renderBlocklistTable();}
+function addToBlocklist(){
+  const val=document.getElementById('block-value').value.trim();
+  const type=document.getElementById('block-type').value;
+  const reportId=document.getElementById('block-reason').value.trim();
+  if(!val){showToast('Please enter a value','error');return;}
+  MOCK_BLOCKLIST.unshift({id:Date.now(),value:val,type,report_id:reportId||null,source:'manual',hits:0,date:new Date().toISOString().split('T')[0]});
+  showToast('Indicator added to scanner','success');
+  closeModal('modal-blocklist');
+  renderBlocklistTable();
+}
+
+function openBlocklistAddModal(){document.getElementById('block-value').value='';document.getElementById('block-reason').value='';openModal('modal-blocklist');}
+function openInviteModal(){showToast('Invite admin — connect to backend','info');}
+function openAddModal(){showToast('Add report — connect to backend','info');}
+
+// ─────────────────────────────────────────
+// FILTERS
+// ─────────────────────────────────────────
+let filterSearch='',filterStatus='',filterType='',filterSeverity='';
+function applyFilters(){
+  let d=[...MOCK_REPORTS];
+  if(filterSearch){const q=filterSearch.toLowerCase();d=d.filter(r=>r.title.toLowerCase().includes(q)||r.report_id.toLowerCase().includes(q)||(r.url&&r.url.toLowerCase().includes(q)));}
+  if(filterStatus) d=d.filter(r=>r.status===filterStatus);
+  if(filterType) d=d.filter(r=>r.type===filterType);
+  if(filterSeverity) d=d.filter(r=>r.severity===filterSeverity);
+  reportsData=d;renderReportsTable();
+}
+function filterReports(v){filterSearch=v;applyFilters();}
+function filterByStatus(v){filterStatus=v;applyFilters();}
+function filterByType(v){filterType=v;applyFilters();}
+function filterBySeverity(v){filterSeverity=v;applyFilters();}
+
+// ─────────────────────────────────────────
+// CONFIRM DANGER MODAL
+// ─────────────────────────────────────────
+function confirmDanger(action){
+  const msgs={purge_removed:'This will permanently delete all removed reports. This cannot be undone.',clear_pending:'This will remove all pending reports from the queue without review.'};
+  document.getElementById('confirm-message').textContent=msgs[action]||'This action cannot be undone.';
+  document.getElementById('confirm-input').value='';
+  pendingAction=action;
+  openModal('modal-confirm');
+}
+function proceedConfirm(){
+  if(document.getElementById('confirm-input').value!=='CONFIRM'){showToast('Please type CONFIRM to proceed','error');return;}
+  if(pendingAction==='purge_removed'){reportsData=reportsData.filter(r=>r.status!=='removed');showToast('Removed reports purged','success');}
+  else if(pendingAction==='clear_pending'){reportsData=reportsData.filter(r=>r.status!=='pending');showToast('Pending queue cleared','info');}
+  closeModal('modal-confirm');
+  renderReportsTable();
+  renderDashboardQueue();
+  updateBadges();
+}
+
+// ─────────────────────────────────────────
+// MODAL HELPERS
+// ─────────────────────────────────────────
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(o=>o.classList.remove('open'));});
+
+// ─────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────
+let toastTimer;
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  const icon=document.getElementById('toast-icon');
+  const icons={success:'✓',error:'✕',info:'i'};
+  t.className='toast '+type;
+  icon.textContent=icons[type]||'i';
+  document.getElementById('toast-text').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ─────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────
+function logAudit(admin,action,target,detail){
+  const now=new Date();
+  const ts=now.toISOString().replace('T',' ').substring(0,16);
+  MOCK_AUDIT.unshift({ts,admin,action,target,detail});
+}
+
+// ─────────────────────────────────────────
+// UPDATE BADGES
+// ─────────────────────────────────────────
+function updateBadges(){
+  const pending=reportsData.filter(r=>r.status==='pending').length;
+  const flagged=reportsData.filter(r=>r.status==='flagged').length;
+  document.getElementById('pending-badge').textContent=pending;
+  document.getElementById('flagged-badge').textContent=flagged;
+  document.getElementById('dash-pending').textContent=pending;
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+renderDashboardQueue();
+renderActivityFeed();
+</script>
+</body>
+</html>
