@@ -204,3 +204,42 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❓ I don't recognise that command. Type /help to see what I can do."
     )
 
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /status — Shows live database stats from the CSIP2 API
+    """
+    try:
+        response = requests.get(f'{CSIP2_API_BASE}/reports', timeout=5)
+        data     = response.json()
+        reports  = data.get('reports', [])
+
+        # Count each type
+        blacklisted = sum(1 for r in reports if r.get('list_type') == 'blacklist')
+        whitelisted = sum(1 for r in reports if r.get('list_type') == 'whitelist')
+        total       = len(reports)
+
+        # Count by scam type
+        scam_counts = {}
+        for r in reports:
+            t = r.get('scam_type', 'Others')
+            scam_counts[t] = scam_counts.get(t, 0) + 1
+
+        # Build scam type breakdown
+        breakdown = "\n".join([
+            f"   • {k}: {v}" 
+            for k, v in sorted(scam_counts.items(), key=lambda x: x[1], reverse=True)
+        ])
+
+        await update.message.reply_text(
+            f"📊 *CSIP2 Database Stats*\n\n"
+            f"🔴 Blacklisted: {blacklisted}\n"
+            f"🟡 Whitelisted: {whitelisted}\n"
+            f"📋 Total Reports: {total}\n\n"
+            f"*By Scam Type:*\n{breakdown if breakdown else 'No data yet'}",
+            parse_mode='Markdown'
+        )
+
+    except requests.exceptions.RequestException:
+        await update.message.reply_text(
+            "⚠️ Could not reach the server. Please try again later."
+        )
