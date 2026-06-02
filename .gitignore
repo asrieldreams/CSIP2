@@ -1,0 +1,22 @@
+# Environment variables
+.env
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Test/debug files
+test_db.py
+test_tables.py
+check_reports.py
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
