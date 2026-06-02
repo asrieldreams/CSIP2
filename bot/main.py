@@ -47,29 +47,29 @@ SCAM_TYPES = [
     'Others'
 ]
 
+# ── In-memory history store ────────────────────────────────
+# { user_id: [ {indicator, scam_type, submitted_at}, ... ] }
+user_history = {}
+
 
 # ============================================================
 #  AUTO SCAN — Feature 1 & 2
-#  Scans any forwarded message for URLs and phone numbers
 # ============================================================
 
 def extract_indicators(text: str) -> dict:
-    """Extracts all URLs and phone numbers from a block of text."""
     url_pattern   = re.compile(r'(https?://[^\s\)\]\>\"\']+)')
     phone_pattern = re.compile(r'(\+?65[\s\-]?\d{4}[\s\-]?\d{4}|\+?\d{8,15})')
-
-    urls = list(set(url_pattern.findall(text)))
+    urls   = list(set(url_pattern.findall(text)))
     phones = list(set([
         re.sub(r'[\s\-]', '', p)
         for p in phone_pattern.findall(text)
         if len(re.sub(r'[\s\-]', '', p)) >= 8
     ]))
-
     return {'urls': urls, 'phones': phones}
 
 
 async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Triggered on any plain text message — auto scans for indicators."""
+    """Triggered on any plain text — auto scans for indicators."""
     text = update.message.text or update.message.caption or ''
     if not text:
         return
@@ -104,13 +104,81 @@ async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
+#  FEATURE: /history
+#  Shows the last 5 reports submitted by this user
+# ============================================================
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/history — Shows the user's last 5 submitted reports."""
+    user_id = update.message.from_user.id
+    history = user_history.get(user_id, [])
+
+    if not history:
+        await update.message.reply_text(
+            "📭 You haven't submitted any reports yet.\n"
+            "Use /report to report a scam!"
+        )
+        return
+
+    # Show last 5 in reverse order (newest first)
+    recent = history[-5:][::-1]
+    lines  = []
+    for i, entry in enumerate(recent, 1):
+        lines.append(
+            f"*{i}.* `{entry['indicator']}`\n"
+            f"   📌 {entry['scam_type']} · 📅 {entry['submitted_at']}"
+        )
+
+    await update.message.reply_text(
+        f"📋 *Your Last {len(recent)} Report{'s' if len(recent) > 1 else ''}:*\n\n"
+        + "\n\n".join(lines),
+        parse_mode='Markdown'
+    )
+
+
+# ============================================================
+#  FEATURE: Group chat support
+#  Bot scans every message in a group for scam indicators
+# ============================================================
+
+async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Scans messages in group chats automatically.
+    Only replies if a blacklisted or whitelisted indicator is found.
+    Stays silent for clean messages to avoid spam.
+    """
+    text = update.message.text or update.message.caption or ''
+    if not text:
+        return
+
+    found = extract_indicators(text)
+    all_indicators = [('url', u) for u in found['urls']] + \
+                     [('phone', p) for p in found['phones']]
+
+    if not all_indicators:
+        return
+
+    flagged = []
+    for _, indicator in all_indicators:
+        result = check_single_indicator_sync(indicator)
+        status = result.get('status')
+        if status in ('blacklist', 'whitelist'):
+            flagged.append(format_check_result(indicator, result))
+
+    # Only reply if something is flagged — don't spam the group
+    if flagged:
+        sender = update.message.from_user.first_name or 'Someone'
+        await update.message.reply_text(
+            f"⚠️ *CSIP2 Scam Alert*\n\n"
+            f"{sender} shared a flagged indicator:\n\n"
+            + "\n\n".join(flagged) +
+            "\n\n🛡️ Stay safe! Use /report to submit new scams.",
+            parse_mode='Markdown'
+        )
+
+
+# ============================================================
 #  REPORT CONVERSATION FLOW
-#  Step 1: /report
-#  Step 2: User sends indicator
-#  Step 3: Inline keyboard for scam type
-#  Step 4: Optional description
-#  Step 5: Confirmation before submit
-#  Step 6: Submit to API
 # ============================================================
 
 async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -143,11 +211,9 @@ async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("❓ Others",           callback_data='Others'),
         ],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.message.reply_text(
         "✅ Got it! Now select the scam type:",
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return WAITING_FOR_SCAM_TYPE
 
@@ -188,7 +254,6 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
         InlineKeyboardButton("✅ Confirm & Submit", callback_data='CONFIRM'),
         InlineKeyboardButton("❌ Cancel",            callback_data='CANCEL'),
     ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
         f"📋 *Please confirm your report:*\n\n"
@@ -197,13 +262,13 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"📝 Description: {description if description else '_(none)_'}\n\n"
         f"Is this correct?",
         parse_mode='Markdown',
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return WAITING_FOR_CONFIRM
 
 
 async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/skip — Skip description and go straight to confirmation."""
+    """/skip — Skip description, go to confirmation."""
     context.user_data['description'] = ''
 
     indicator = context.user_data.get('indicator', '')
@@ -213,7 +278,6 @@ async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("✅ Confirm & Submit", callback_data='CONFIRM'),
         InlineKeyboardButton("❌ Cancel",            callback_data='CANCEL'),
     ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
         f"📋 *Please confirm your report:*\n\n"
@@ -222,7 +286,7 @@ async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📝 Description: _(none)_\n\n"
         f"Is this correct?",
         parse_mode='Markdown',
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return WAITING_FOR_CONFIRM
 
@@ -243,11 +307,15 @@ async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 6 — Sends the collected report to Kaden's Flask API."""
+    """Step 6 — Sends report to Kaden's Flask API and saves to history."""
+    user_id   = update.effective_user.id
+    indicator = context.user_data.get('indicator')
+    scam_type = context.user_data.get('scam_type')
+
     payload = {
         'indicator_type': context.user_data.get('indicator_type'),
-        'indicator':      context.user_data.get('indicator'),
-        'scam_type':      context.user_data.get('scam_type'),
+        'indicator':      indicator,
+        'scam_type':      scam_type,
         'description':    context.user_data.get('description', ''),
         'source':         'telegram'
     }
@@ -257,11 +325,22 @@ async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYP
             f'{CSIP2_API_BASE}/report', json=payload, timeout=5
         )
         if response.status_code == 201:
+            # ── Save to user history ───────────────────────
+            from datetime import datetime
+            if user_id not in user_history:
+                user_history[user_id] = []
+            user_history[user_id].append({
+                'indicator':    indicator,
+                'scam_type':    scam_type,
+                'submitted_at': datetime.now().strftime('%d %b %Y %H:%M')
+            })
+
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="✅ *Report submitted successfully!*\n\n"
                      "Our admin team will review it shortly.\n"
-                     "Thank you for helping keep Singapore safe! 🇸🇬",
+                     "Thank you for helping keep Singapore safe! 🇸🇬\n\n"
+                     "💡 Use /history to view your past reports.",
                 parse_mode='Markdown'
             )
         else:
@@ -307,15 +386,28 @@ def main():
     )
 
     # ── Register all handlers ──────────────────────────────
-    # ORDER MATTERS — report_conv must come before unknown_command
-    app.add_handler(CommandHandler('start',  start))
-    app.add_handler(CommandHandler('help',   help_command))
-    app.add_handler(CommandHandler('check',  check_command))
-    app.add_handler(CommandHandler('status', status_command))
-    app.add_handler(CommandHandler('about',  about_command))
+    # ORDER MATTERS — specific handlers before catch-all
+    app.add_handler(CommandHandler('start',   start))
+    app.add_handler(CommandHandler('help',    help_command))
+    app.add_handler(CommandHandler('check',   check_command))
+    app.add_handler(CommandHandler('status',  status_command))
+    app.add_handler(CommandHandler('about',   about_command))
+    app.add_handler(CommandHandler('history', history_command))
     app.add_handler(report_conv)
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_scan_message))
+
+    # ── Auto scan — private chats only ────────────────────
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+        auto_scan_message
+    ))
+
+    # ── Group chat scan — groups and supergroups ──────────
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND &
+        (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP),
+        group_scan_message
+    ))
 
     print("🤖 CSIP2 Bot is running...")
     app.run_polling()
