@@ -26,16 +26,24 @@ app.register_blueprint(admin_bp)
 def home():
     try:
         conn = get_connection()
+
         with conn.cursor() as cursor:
-            cursor.execute("SELECT NOW() as current_time")
-            result = cursor.fetchone()
+            # Check database connection and list tables
+            cursor.execute("SHOW TABLES")
+            tables = cursor.fetchall()
+
         return jsonify({
             'status': 'connected',
-            'time':   str(result['current_time'])
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+            'database': 'online',
+            'tables_found': len(tables),
+            'tables': tables
+        }), 200
 
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 # ============================================================
 #  ENDPOINT 1: POST /report
