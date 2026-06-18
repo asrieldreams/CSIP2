@@ -4,6 +4,7 @@
 #  Owner: Kaden (Backend Lead)
 # ============================================================
 
+from flask_cors import CORS
 from flask import Flask, request, jsonify, session
 from db import get_connection
 from datetime import datetime
