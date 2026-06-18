@@ -4,7 +4,7 @@
 #  Owner: Kaden (Backend Lead)
 # ============================================================
 
-from flask_cors import CORS
+from flask_cors import CORS #new import
 from flask import Flask, request, jsonify, session
 from db import get_connection
 from datetime import datetime
@@ -13,6 +13,7 @@ from admin import admin_bp
 from security import rate_limit, validate_report_payload, sanitise_text
 
 app = Flask(__name__)
+CORS(app) # This allows your browser extension to safely make API requests
 app.secret_key = 'csip2-secret-change-this-before-deployment'
 
 # Register admin routes
