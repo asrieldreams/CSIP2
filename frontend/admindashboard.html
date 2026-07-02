@@ -1,13 +1,3 @@
-const API = 'http://localhost:5000/api';
-
-// Helper — wraps fetch() and adds the JWT token header automatically
-async function apiFetch(endpoint, options = {}) {
-    const token = localStorage.getItem('sw_token');
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
-    return res;
-}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -998,10 +988,20 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 </div>
 
 <script>
+const API = 'http://localhost:5000/api';
+
+// Helper — wraps fetch() and adds the JWT token header automatically
+async function apiFetch(endpoint, options = {}) {
+    const token = localStorage.getItem('sw_token');
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+    return res;
+}
+
 // ─────────────────────────────────────────
 // API BASE — update to your Flask backend
 // ─────────────────────────────────────────
-const API = '/api';
 /*
   Backend endpoints expected:
   GET    /api/admin/stats

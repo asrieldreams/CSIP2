@@ -1,13 +1,4 @@
-const API = 'http://localhost:5000/api';
 
-// Helper — wraps fetch() and adds the JWT token header automatically
-async function apiFetch(endpoint, options = {}) {
-    const token = localStorage.getItem('sw_token');
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
-    return res;
-}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -374,6 +365,16 @@ select.filter-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px 
 <div class="toast" id="toast"></div>
 
 <script>
+const API = 'http://localhost:5000/api';
+
+// Helper — wraps fetch() and adds the JWT token header automatically
+async function apiFetch(endpoint, options = {}) {
+    const token = localStorage.getItem('sw_token');
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+    return res;
+}
 // ─────────────────────────────────────────────
 // CONFIGURATION — point this at your Flask API
 // ─────────────────────────────────────────────

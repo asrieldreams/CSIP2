@@ -1,13 +1,4 @@
-const API = 'http://localhost:5000/api';
 
-// Helper — wraps fetch() and adds the JWT token header automatically
-async function apiFetch(endpoint, options = {}) {
-    const token = localStorage.getItem('sw_token');
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
-    return res;
-}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -737,6 +728,16 @@ async function apiFetch(endpoint, options = {}) {
 </div>
 
 <script>
+const API = 'http://localhost:5000/api';
+
+// Helper — wraps fetch() and adds the JWT token header automatically
+async function apiFetch(endpoint, options = {}) {
+    const token = localStorage.getItem('sw_token');
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+    return res;
+}
 function openAdminLogin() {
   const overlay = document.getElementById('admin-modal-overlay');
   overlay.style.opacity = '1';
@@ -762,37 +763,58 @@ function togglePassword() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdminLogin(); });
 
-function attemptLogin() {
-  const user = document.getElementById('admin-username').value.trim();
-  const pass = document.getElementById('admin-password').value;
-  const errBox = document.getElementById('admin-login-error');
-  const btn = document.getElementById('login-btn');
-  const btnText = document.getElementById('login-btn-text');
+async function attemptLogin() {
+    const user    = document.getElementById('admin-username').value.trim();
+    const pass    = document.getElementById('admin-password').value;
+    const errBox  = document.getElementById('admin-login-error');
+    const btn     = document.getElementById('login-btn');
+    const btnText = document.getElementById('login-btn-text');
 
-  // Show loading state
-  btn.disabled = true;
-  btn.style.opacity = '0.8';
-  btnText.textContent = 'Signing in…';
+    btn.disabled = true;
+    btn.style.opacity = '0.8';
+    btnText.textContent = 'Signing in…';
 
-  setTimeout(() => {
-    // Fake credentials check
-    if (user === 'admin' && pass === 'admin123') {
-      btnText.textContent = '✓ Redirecting…';
-      btn.style.background = '#00c17c';
-      setTimeout(() => { window.location.href = 'admindashboard.html'; }, 700);
-    } else {
-      errBox.style.display = 'flex';
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btnText.textContent = 'Sign In to Dashboard';
-      // Shake animation
-      const modal = document.getElementById('admin-modal');
-      modal.style.animation = 'shake 0.4s ease';
-      setTimeout(() => modal.style.animation = '', 400);
-      document.getElementById('admin-password').value = '';
-      document.getElementById('admin-password').focus();
+    try {
+        const res  = await fetch(`${API}/auth/login`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                // Your login modal uses username, but backend expects full email
+                email:    user.includes('@') ? user : `${user}@scamwatch.sg`,
+                password: pass,
+            })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            // Save token so admindashboard can use it
+            localStorage.setItem('sw_token', data.token);
+            localStorage.setItem('sw_admin', JSON.stringify(data.admin));
+
+            btnText.textContent = '✓ Redirecting…';
+            btn.style.background = '#00c17c';
+            setTimeout(() => { window.location.href = 'admindashboard.html'; }, 700);
+        } else {
+            // Wrong credentials
+            errBox.style.display = 'flex';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btnText.textContent = 'Sign In to Dashboard';
+            document.getElementById('admin-password').value = '';
+            document.getElementById('admin-password').focus();
+            // Shake animation
+            const modal = document.getElementById('admin-modal');
+            modal.style.animation = 'shake 0.4s ease';
+            setTimeout(() => modal.style.animation = '', 400);
+        }
+    } catch (err) {
+        // Backend not running or network error
+        errBox.style.display = 'flex';
+        errBox.querySelector('div') && (errBox.querySelector('div').textContent = 'Cannot reach server. Is Flask running?');
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btnText.textContent = 'Sign In to Dashboard';
     }
-  }, 900);
 }
 </script>
 
