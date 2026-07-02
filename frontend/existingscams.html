@@ -446,69 +446,50 @@ const TYPE_META = {
 // ─────────────────────────────────────────────
 // MOCK DATA — remove this block when backend is ready
 // ─────────────────────────────────────────────
-const MOCK_SCAMS = [
-  { id:1, report_id:'SS-2025-47201', type:'phishing', title:'Fake OCBC Bank Login Page', description:'A phishing SMS was sent impersonating OCBC Bank, directing victims to a fake login page hosted on a typosquatting domain. The page harvests internet banking credentials and OTPs before redirecting to the real OCBC website.', url:'ocbc-verify-login.xyz', phone_number:null, platform:'SMS', severity:'high', status:'verified', amount_lost:null, report_count:142, created_at:'2025-05-30T14:22:00' },
-  { id:2, report_id:'SS-2025-47198', type:'job', title:'Part-time "Like & Follow" Job Scam', description:'Victims are recruited via WhatsApp with offers of earning SGD 50–200/day for simple online tasks. After completing initial tasks and receiving small payments, they are asked to pay upfront "capital" to unlock higher-paying missions before the scammer disappears.', url:null, phone_number:'+65 8123 4567', platform:'WhatsApp', severity:'high', status:'verified', amount_lost:4500.00, report_count:89, created_at:'2025-05-30T11:05:00' },
-  { id:3, report_id:'SS-2025-47186', type:'impersonation', title:'SingPass Account Suspension SMS', description:'An SMS claiming to be from the Government Technology Agency (GovTech) states that your SingPass account has been suspended and requests immediate verification via a phishing link to steal credentials.', url:'singpass-secure-verify.net', phone_number:null, platform:'SMS', severity:'high', status:'verified', amount_lost:null, report_count:211, created_at:'2025-05-29T09:14:00' },
-  { id:4, report_id:'SS-2025-47170', type:'investment', title:'Crypto Investment Telegram Group', description:'A Telegram group promising guaranteed 30% monthly returns on cryptocurrency investments. Members are shown fabricated profit screenshots and encouraged to deposit via crypto wallets. Withdrawals are blocked with excuses about "tax clearance fees".', url:null, phone_number:null, platform:'Telegram', severity:'high', status:'verified', amount_lost:12000.00, report_count:67, created_at:'2025-05-28T16:40:00' },
-  { id:5, report_id:'SS-2025-47155', type:'ecommerce', title:'Fake Carousell Buyer Overpayment', description:'A buyer on Carousell sends a PayNow confirmation screenshot showing overpayment and asks the seller to refund the difference immediately. The original payment was never made, leaving the seller out of pocket.', url:null, phone_number:'+65 9876 5432', platform:'Carousell', severity:'medium', status:'verified', amount_lost:320.00, report_count:38, created_at:'2025-05-28T10:55:00' },
-  { id:6, report_id:'SS-2025-47140', type:'phishing', title:'DHL Parcel Customs Fee Email', description:'An email mimicking DHL branding informs recipients of a held parcel requiring urgent customs fee payment of SGD 2–5 via a fake payment page that captures credit card details.', url:'dhl-delivery-sg-customs.com', phone_number:null, platform:'Email', severity:'medium', status:'verified', amount_lost:null, report_count:55, created_at:'2025-05-27T15:30:00' },
-  { id:7, report_id:'SS-2025-47129', type:'love', title:'Romance Scam via Facebook Dating', description:'Scammer poses as an overseas engineer on Facebook Dating, builds a relationship over weeks, then claims to be stranded and requests emergency fund transfers. No repayment is ever made.', url:null, phone_number:null, platform:'Facebook', severity:'high', status:'unverified', amount_lost:8800.00, report_count:12, created_at:'2025-05-27T08:20:00' },
-  { id:8, report_id:'SS-2025-47110', type:'malware', title:'Fake SGDeals App APK', description:'A link circulating on Telegram promises exclusive SingTel deals and prompts users to sideload an APK file. The app requests SMS permissions and intercepts OTPs to take over banking apps.', url:'sgdeals-app.top/download', phone_number:null, platform:'Telegram', severity:'high', status:'verified', amount_lost:null, report_count:29, created_at:'2025-05-26T12:45:00' },
-  { id:9, report_id:'SS-2025-47098', type:'sms', title:'"You have a parcel" Phishing SMS', description:'A generic SMS claiming a parcel is awaiting collection, linking to a page that requests name, address, and credit card details for a small "redelivery fee" of SGD 0.50.', url:'parcels-sg-redeliver.com', phone_number:null, platform:'SMS', severity:'medium', status:'verified', amount_lost:null, report_count:183, created_at:'2025-05-25T17:10:00' },
-  { id:10, report_id:'SS-2025-47080', type:'impersonation', title:'SPF Police Impersonation Call', description:'Caller claims to be an SPF officer investigating a money laundering case involving the victim\'s bank account. Instructs victim to transfer funds to a "safe" government account to assist the investigation.', url:null, phone_number:'+65 6765 0000', platform:'Phone Call', severity:'high', status:'verified', amount_lost:25000.00, report_count:44, created_at:'2025-05-25T09:00:00' },
-  { id:11, report_id:'SS-2025-47055', type:'investment', title:'Foreign Exchange "Guaranteed Profits" Group', description:'WhatsApp group run by supposed forex trading experts showing fabricated daily profit charts. New members are asked to deposit a minimum of SGD 500 to join premium signals. Funds cannot be withdrawn.', url:null, phone_number:null, platform:'WhatsApp', severity:'medium', status:'unverified', amount_lost:1200.00, report_count:19, created_at:'2025-05-24T14:55:00' },
-  { id:12, report_id:'SS-2025-47030', type:'ecommerce', title:'Shopee Fake Seller – Electronics', description:'A Shopee seller with inflated fake reviews sells electronics at drastically reduced prices. After payment, orders are never shipped and the seller disappears after a few days.', url:null, phone_number:null, platform:'Lazada / Shopee', severity:'low', status:'verified', amount_lost:459.00, report_count:27, created_at:'2025-05-24T10:20:00' },
-];
-
-const MOCK_STATS = { total: 28401, today: 47, high_severity: 1847, verified: 24106 };
 
 // ─────────────────────────────────────────────
 // API CALLS — swap mock returns with real fetch()
 // ─────────────────────────────────────────────
+// ── REPLACE fetchScams() ──────────────────────────────────────────────────
 async function fetchScams() {
-  const params = new URLSearchParams({
-    page: state.page,
-    per_page: state.perPage,
-    sort: state.sort,
-    ...(state.search && { search: state.search }),
-    ...(state.typeFilter && { type: state.typeFilter }),
-    ...(state.filters.severity && { severity: state.filters.severity }),
-    ...(state.filters.status && { status: state.filters.status }),
-    ...(state.filters.platform && { platform: state.filters.platform }),
-  });
+    const params = new URLSearchParams({
+        page:     state.page,
+        per_page: state.perPage,
+        sort:     state.sort,
+        ...(state.search     && { search:   state.search }),
+        ...(state.typeFilter && { type:     state.typeFilter }),
+        ...(state.filters.severity && { severity: state.filters.severity }),
+        ...(state.filters.platform && { platform: state.filters.platform }),
+    });
 
-  // ── MOCK: comment out try/catch and use real fetch when backend ready ──
-  try {
-    /* REAL FETCH (uncomment when backend ready):
-    const res = await fetch(`${API_BASE}/scams?${params}`);
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-    */
-
-    // MOCK LOGIC
-    await new Promise(r => setTimeout(r, 400));
-    let data = [...MOCK_SCAMS];
-    if (state.search) {
-      const q = state.search.toLowerCase();
-      data = data.filter(s => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || (s.url && s.url.toLowerCase().includes(q)) || (s.phone_number && s.phone_number.includes(q)));
+    try {
+        const res  = await apiFetch(`/scams?${params}`);
+        if (!res.ok) throw new Error('API error');
+        return await res.json();
+    } catch (e) {
+        console.error('fetchScams error:', e);
+        return { data: [], total: 0, page: 1, per_page: state.perPage, pages: 0 };
     }
-    if (state.typeFilter) data = data.filter(s => s.type === state.typeFilter);
-    if (state.filters.severity) data = data.filter(s => s.severity === state.filters.severity);
-    if (state.filters.status) data = data.filter(s => s.status === state.filters.status);
-    if (state.filters.platform) data = data.filter(s => s.platform === state.filters.platform);
-    const sevMap = {high:3,medium:2,low:1};
-    if (state.sort === 'severity_desc') data.sort((a,b) => (sevMap[b.severity]||0)-(sevMap[a.severity]||0));
-    else if (state.sort === 'reports_desc') data.sort((a,b) => b.report_count - a.report_count);
-    else if (state.sort === 'date_asc') data.sort((a,b) => new Date(a.created_at)-new Date(b.created_at));
-    else data.sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
-    const total = data.length;
-    const start = (state.page - 1) * state.perPage;
-    return { data: data.slice(start, start + state.perPage), total, page: state.page, per_page: state.perPage, pages: Math.ceil(total / state.perPage) };
-  } catch(e) {
-    console.error('fetchScams error:', e);
-    return { data: [], total: 0, page: 1, per_page: state.perPage, pages: 0 };
-  }
+}
+
+// ── REPLACE fetchStats() ──────────────────────────────────────────────────
+async function fetchStats() {
+    try {
+        const res = await apiFetch('/scams/stats');
+        return await res.json();
+    } catch (e) {
+        return null;
+    }
+}
+
+// ── REPLACE fetchScamById() ───────────────────────────────────────────────
+async function fetchScamById(id) {
+    try {
+        const res = await apiFetch(`/scams/${id}`);
+        return await res.json();
+    } catch (e) {
+        return null;
+    }
 }
 
 async function fetchStats() {

@@ -1071,20 +1071,43 @@ function generateReportId() {
   return `SS-${yr}-${num}`;
 }
 
-function submitReport() {
-  const btn = document.querySelector('.btn-submit');
-  btn.textContent = 'Submitting…';
-  btn.disabled = true;
-  btn.style.opacity = '0.7';
+async function submitReport() {
+    const btn     = document.querySelector('.btn-submit');
+    const btnText = btn.querySelector('span') || btn;
+    btn.disabled  = true;
 
-  setTimeout(() => {
-    [1,2,3].forEach(i => document.getElementById('step-'+i).classList.remove('active'));
-    document.getElementById('success-state').classList.add('show');
-    document.getElementById('report-id-text').textContent = generateReportId();
-    document.getElementById('steps-indicator').style.opacity = '0.4';
-    document.getElementById('progress-fill').style.width = '100%';
-    document.getElementById('progress-fill').style.background = 'var(--accent2)';
-  }, 1200);
+    try {
+        const res  = await apiFetch('/scams', {
+            method: 'POST',
+            body:   JSON.stringify({
+                type:         selectedType,
+                severity:     selectedSeverity || 'medium',
+                platform:     document.getElementById('platform').value || null,
+                url:          document.getElementById('scam-url').value.trim() || null,
+                phone_number: document.getElementById('scammer-num').value.trim() || null,
+                title:        document.getElementById('scam-desc').value.trim().split('\n')[0].substring(0, 100),
+                description:  document.getElementById('scam-desc').value.trim(),
+                amount_lost:  document.getElementById('amount-lost').value || null,
+            })
+        });
+        const data = await res.json();
+
+        if (res.ok || res.status === 200) {
+            // Show success state
+            [1,2,3].forEach(i => document.getElementById('step-'+i).classList.remove('active'));
+            document.getElementById('success-state').classList.add('show');
+            document.getElementById('report-id-text').textContent = data.report_id;
+            document.getElementById('steps-indicator').style.opacity = '0.4';
+            document.getElementById('progress-fill').style.width = '100%';
+            document.getElementById('progress-fill').style.background = 'var(--accent2)';
+        } else {
+            alert(data.error || 'Submission failed. Please try again.');
+        }
+    } catch (err) {
+        alert('Cannot reach server. Make sure Flask is running on port 5000.');
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 function copyReportId() {

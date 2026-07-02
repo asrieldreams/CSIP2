@@ -990,6 +990,28 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 <script>
 const API = 'http://localhost:5000/api';
 
+async function apiFetch(endpoint, options = {}) {
+    const token = localStorage.getItem('sw_token');
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+    if (res.status === 401) {
+        // Token expired — send back to login
+        localStorage.removeItem('sw_token');
+        window.location.href = 'introduction.html';
+    }
+    return res;
+}
+
+// Verify token on page load — redirect to login if missing or expired
+async function checkAuth() {
+    const token = localStorage.getItem('sw_token');
+    if (!token) { window.location.href = 'introduction.html'; return; }
+    const res = await apiFetch('/auth/me');
+    if (!res.ok) { window.location.href = 'introduction.html'; }
+}
+
+
 // Helper — wraps fetch() and adds the JWT token header automatically
 async function apiFetch(endpoint, options = {}) {
     const token = localStorage.getItem('sw_token');
@@ -1089,19 +1111,408 @@ let reportsData = [...MOCK_REPORTS];
 // NAVIGATION
 // ─────────────────────────────────────────
 const pageTitles = {dashboard:'Dashboard',reports:'Scam Reports',flagged:'Flagged Content',users:'Spam & Abuse Control',blocklist:'Scanner Indicators',analytics:'Analytics',settings:'Settings',auditlog:'Audit Log'};
+// ── REPLACE showPage() to load real data ──────────────────────────────────
 function showPage(name, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  if(btn) btn.classList.add('active');
-  document.getElementById('topbar-title').textContent = pageTitles[name]||name;
-  if(name==='reports') renderReportsTable();
-  if(name==='flagged') renderFlaggedTable();
-  if(name==='users') { renderSpamTable(); renderAdminsTable(); }
-  if(name==='blocklist') renderBlocklistTable();
-  if(name==='analytics') renderAnalytics();
-  if(name==='auditlog') renderAuditLog();
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+    document.getElementById('topbar-title').textContent = pageTitles[name] || name;
+
+    if (name === 'dashboard')  loadDashboard();
+    if (name === 'reports')    loadReports();
+    if (name === 'flagged')    loadFlagged();
+    if (name === 'users')      loadSpamPage();
+    if (name === 'blocklist')  loadIndicators();
+    if (name === 'analytics')  loadAnalytics();
+    if (name === 'auditlog')   loadAuditLog();
+    if (name === 'settings')   loadSettings();
 }
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────
+async function loadDashboard() {
+    const res  = await apiFetch('/admin/stats');
+    const data = await res.json();
+    document.getElementById('dash-total').textContent   = data.total?.toLocaleString()    || '—';
+    document.getElementById('dash-pending').textContent = data.pending?.toLocaleString()  || '—';
+    document.getElementById('stat-today').textContent   = data.today?.toLocaleString()    || '—';
+    document.getElementById('pending-badge').textContent = data.pending || 0;
+    document.getElementById('flagged-badge').textContent = data.flagged || 0;
+    loadPendingQueue();
+    loadActivityFeed();
+}
+
+async function loadPendingQueue() {
+    const res  = await apiFetch('/admin/reports?status=pending&per_page=5');
+    const data = await res.json();
+    const tbody = document.getElementById('dash-queue-body');
+    if (!data.data?.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state" style="padding:2rem"><div class="empty-state-icon">🎉</div><div class="empty-state-title">Queue is clear!</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = data.data.map(r => `
+        <tr>
+            <td><span class="td-main" style="font-size:0.83rem">${r.title}</span></td>
+            <td><span class="type-pill">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
+            <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
+            <td style="font-size:0.78rem;color:var(--ink-muted)">${timeAgo(r.created_at)}</td>
+            <td>
+                <div style="display:flex;gap:5px">
+                    <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')">✓</button>
+                    <button class="btn btn-danger btn-sm"  onclick="quickAction(${r.id},'remove')">✕</button>
+                    <button class="btn btn-ghost btn-sm"   onclick="openReviewModal(${r.id})">Review</button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+async function loadActivityFeed() {
+    const res  = await apiFetch('/admin/audit-log?per_page=6');
+    const data = await res.json();
+    const actionColors = { Verified:'var(--green)', Removed:'var(--red)', Flagged:'var(--amber)', 'Added Indicator':'var(--accent)', 'Blocked IP':'var(--red)', 'Bulk Verified':'var(--green)', Login:'var(--ink-soft)' };
+    document.getElementById('activity-list').innerHTML = data.data.map(l => `
+        <div class="activity-item">
+            <div class="activity-dot" style="background:${actionColors[l.action]||'var(--ink-muted)'}"></div>
+            <div class="activity-text"><strong>${l.admin}</strong> ${l.action.toLowerCase()} <strong>${l.target}</strong></div>
+            <div class="activity-time">${l.ts.split(' ')[1]}</div>
+        </div>`).join('');
+}
+
+// ── SCAM REPORTS TABLE ────────────────────────────────────────────────────
+async function loadReports() {
+    const res  = await apiFetch(`/admin/reports?status=${filterStatus}&type=${filterType}&severity=${filterSeverity}&search=${filterSearch}&sort=${state?.sort||'date_desc'}`);
+    const data = await res.json();
+    reportsData = data.data || [];
+    renderReportsTable();
+    document.getElementById('reports-count-label').textContent = `Showing 1–${reportsData.length} of ${data.total}`;
+}
+
+// ── QUICK ACTIONS on individual reports ──────────────────────────────────
+async function quickAction(id, action) {
+    const statusMap = { verify: 'verified', remove: 'removed', flag: 'flagged' };
+    const res = await apiFetch(`/admin/reports/${id}`, {
+        method: 'PATCH',
+        body:   JSON.stringify({ status: statusMap[action] })
+    });
+    if (res.ok) {
+        showToast(action === 'verify' ? 'Report verified ✓' : 'Report removed', action === 'verify' ? 'success' : 'error');
+        loadReports();
+        loadDashboard();
+    }
+}
+
+async function actionReport(action) {
+    if (!currentReportId) return;
+    const status   = document.getElementById('review-status').value;
+    const severity = document.getElementById('review-severity').value;
+    const notes    = document.getElementById('review-notes').value;
+    const res = await apiFetch(`/admin/reports/${currentReportId}`, {
+        method: 'PATCH',
+        body:   JSON.stringify({
+            status:      action === 'verify' ? 'verified' : action === 'remove' ? 'removed' : status,
+            severity,
+            admin_notes: notes,
+        })
+    });
+    if (res.ok) {
+        showToast(action === 'verify' ? 'Report verified and published' : 'Report removed', 'success');
+        closeModal('modal-review');
+        loadReports();
+        loadDashboard();
+    }
+}
+
+async function deleteReport(id) {
+    const res = await apiFetch(`/admin/reports/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+        showToast('Report permanently deleted', 'error');
+        loadReports();
+        loadFlagged();
+        loadDashboard();
+    }
+}
+
+async function bulkAction(action) {
+    const ids = [...selectedRows];
+    if (!ids.length) return;
+    const res = await apiFetch('/admin/reports/bulk', {
+        method: 'PATCH',
+        body:   JSON.stringify({ ids, action })
+    });
+    if (res.ok) {
+        showToast(`${ids.length} reports ${action}d`, action === 'verify' ? 'success' : 'error');
+        clearSelection();
+        loadReports();
+        loadDashboard();
+    }
+}
+
+// ── FLAGGED ───────────────────────────────────────────────────────────────
+async function loadFlagged() {
+    const res  = await apiFetch('/admin/reports?status=flagged&per_page=50');
+    const data = await res.json();
+    const tbody = document.getElementById('flagged-table-body');
+    tbody.innerHTML = (data.data || []).map(r => `
+        <tr>
+            <td><input type="checkbox"></td>
+            <td><span class="td-mono">${r.report_id}</span></td>
+            <td><span class="td-main">${r.title}</span></td>
+            <td style="color:var(--amber);font-size:0.82rem">${r.admin_notes || 'Flagged for review'}</td>
+            <td><span class="badge badge-flagged">${r.report_count} reports</span></td>
+            <td>${fmtDate(r.created_at)}</td>
+            <td>
+                <div class="row-actions">
+                    <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')">Restore</button>
+                    <button class="btn btn-danger btn-sm"  onclick="deleteReport(${r.id})">Remove</button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+async function bulkRemoveFlagged() {
+    const res  = await apiFetch('/admin/reports?status=flagged&per_page=100');
+    const data = await res.json();
+    const ids  = (data.data || []).map(r => r.id);
+    if (!ids.length) { showToast('No flagged reports to remove', 'info'); return; }
+    const bulk = await apiFetch('/admin/reports/bulk', {
+        method: 'PATCH',
+        body:   JSON.stringify({ ids, action: 'remove' })
+    });
+    if (bulk.ok) {
+        showToast('All flagged reports removed', 'error');
+        loadFlagged();
+        loadDashboard();
+    }
+}
+
+// ── SPAM & ABUSE ──────────────────────────────────────────────────────────
+async function loadSpamPage() {
+    const [spamRes, adminsRes] = await Promise.all([
+        apiFetch('/admin/spam'),
+        apiFetch('/admin/admins'),
+    ]);
+    const spamData   = await spamRes.json();
+    const adminsData = await adminsRes.json();
+    renderSpamTableFromData(spamData.data || []);
+    renderAdminsTableFromData(adminsData.data || []);
+}
+
+function renderSpamTableFromData(sessions) {
+    const tbody = document.getElementById('spam-table-body');
+    if (!sessions.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">No spam sessions</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = sessions.map(s => `
+        <tr>
+            <td><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-muted)">${s.token}</span></td>
+            <td style="font-size:0.8rem;color:var(--amber)">${s.reason}</td>
+            <td><span class="badge badge-flagged">${s.count}×</span></td>
+            <td style="font-size:0.78rem;color:var(--ink-muted)">${s.time}</td>
+            <td>
+                <div class="row-actions">
+                    <button class="btn btn-danger btn-sm" onclick="dismissSpam(${s.id})">Dismiss</button>
+                    <button class="btn btn-amber btn-sm"  onclick="blockSpamIP(${s.id})">Block IP</button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+function renderAdminsTableFromData(admins) {
+    const tbody = document.getElementById('admins-table-body');
+    tbody.innerHTML = admins.map((a, i) => `
+        <tr>
+            <td>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700">${a.initials}</div>
+                    <div><div style="font-size:0.85rem;font-weight:600;color:var(--ink)">${a.name}</div><div style="font-size:0.72rem;color:var(--ink-muted)">${a.email}</div></div>
+                </div>
+            </td>
+            <td><span class="badge ${a.role==='super_admin'?'badge-verified':a.role==='moderator'?'badge-active':'badge-pending'}">${a.role}</span></td>
+            <td style="font-size:0.82rem;color:var(--ink-muted)">${a.last_login ? new Date(a.last_login).toLocaleString('en-SG') : 'Never'}</td>
+            <td>
+                <div class="row-actions">
+                    ${a.role !== 'super_admin'
+                        ? `<button class="btn btn-ghost btn-sm" onclick="showToast('Edit role — coming soon','info')">Edit Role</button>
+                           <button class="btn btn-danger btn-sm" onclick="removeAdmin(${a.id})">Remove</button>`
+                        : '<span style="font-size:0.75rem;color:var(--ink-muted)">Owner</span>'}
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+async function dismissSpam(id) {
+    const res = await apiFetch(`/admin/spam/${id}`, { method: 'DELETE' });
+    if (res.ok) { showToast('Spam session dismissed', 'success'); loadSpamPage(); }
+}
+async function blockSpamIP(id) {
+    const res = await apiFetch(`/admin/spam/${id}/block`, { method: 'PATCH' });
+    if (res.ok) { showToast('IP blocked', 'error'); loadSpamPage(); }
+}
+async function clearAllSpam() {
+    const res = await apiFetch('/admin/spam/all', { method: 'DELETE' });
+    if (res.ok) { showToast('All spam sessions cleared', 'success'); loadSpamPage(); }
+}
+async function removeAdmin(id) {
+    const res = await apiFetch(`/admin/admins/${id}`, { method: 'DELETE' });
+    if (res.ok) { showToast('Admin removed', 'success'); loadSpamPage(); }
+    else { const d = await res.json(); showToast(d.error || 'Failed', 'error'); }
+}
+async function saveRateRules() {
+    const res = await apiFetch('/admin/rate-rules', {
+        method: 'PATCH',
+        body: JSON.stringify({
+            max_per_hour:      parseInt(document.getElementById('rate-ip').value),
+            cooldown_minutes:  parseInt(document.getElementById('rate-cooldown').value),
+            dupe_window_hours: parseInt(document.getElementById('rate-dupe').value),
+            captcha_after:     parseInt(document.getElementById('rate-captcha').value),
+        })
+    });
+    if (res.ok) showToast('Rate limit rules saved', 'success');
+}
+
+// ── SCANNER INDICATORS ────────────────────────────────────────────────────
+async function loadIndicators() {
+    const res  = await apiFetch('/admin/indicators');
+    const data = await res.json();
+    renderBlocklistTable(data.data || []);
+    const countEl = document.getElementById('ind-count-label');
+    if (countEl) countEl.textContent = `Showing 1–${data.data?.length||0} of ${data.total||0}`;
+}
+
+function renderBlocklistTable(indicators) {
+    const tbody = document.getElementById('blocklist-table-body');
+    if (!indicators.length) {
+        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">No indicators</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = indicators.map(b => `
+        <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--red)">${b.type==='Phone'?'📞':'🔗'} ${b.value}</span></td>
+            <td><span class="badge badge-flagged">${b.type}</span></td>
+            <td>${b.report_id ? `<span class="td-mono" style="color:var(--accent)">${b.report_id}</span>` : '<span style="font-size:0.75rem;color:var(--ink-muted)">Manual</span>'}</td>
+            <td><span class="badge ${b.source==='auto'?'badge-verified':'badge-active'}">${b.source}</span></td>
+            <td><strong style="color:var(--ink)">${b.hits}</strong> <span style="font-size:0.72rem;color:var(--ink-muted)">hits</span></td>
+            <td style="font-size:0.8rem;color:var(--ink-muted)">${b.date}</td>
+            <td>
+                <div class="row-actions">
+                    <button class="btn btn-danger btn-sm" onclick="removeFromBlocklist(${b.id})">Remove</button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+async function addToBlocklist() {
+    const val      = document.getElementById('block-value').value.trim();
+    const type     = document.getElementById('block-type').value;
+    const reportId = document.getElementById('block-reason').value.trim();
+    if (!val) { showToast('Please enter a value', 'error'); return; }
+    const res = await apiFetch('/admin/indicators', {
+        method: 'POST',
+        body:   JSON.stringify({ value: val, type, report_id: reportId || null })
+    });
+    const data = await res.json();
+    if (res.ok) {
+        showToast('Indicator added to scanner', 'success');
+        closeModal('modal-blocklist');
+        loadIndicators();
+    } else {
+        showToast(data.error || 'Failed to add indicator', 'error');
+    }
+}
+
+async function removeFromBlocklist(id) {
+    const res = await apiFetch(`/admin/indicators/${id}`, { method: 'DELETE' });
+    if (res.ok) { showToast('Indicator removed', 'success'); loadIndicators(); }
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────────────
+async function loadAuditLog() {
+    const res  = await apiFetch('/admin/audit-log?per_page=50');
+    const data = await res.json();
+    const actionColors = { Verified:'var(--green)', Removed:'var(--red)', Flagged:'var(--amber)', 'Added Indicator':'var(--accent)', 'Blocked IP':'var(--red)', Login:'var(--ink-soft)' };
+    document.getElementById('audit-table-body').innerHTML = (data.data || []).map(l => `
+        <tr>
+            <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-muted)">${l.ts}</span></td>
+            <td style="font-size:0.85rem;font-weight:600">${l.admin}</td>
+            <td><span style="font-size:0.82rem;font-weight:600;color:${actionColors[l.action]||'var(--ink-soft)'}">${l.action}</span></td>
+            <td><span class="td-mono">${l.target||'—'}</span></td>
+            <td style="font-size:0.82rem;color:var(--ink-soft)">${l.detail||'—'}</td>
+        </tr>`).join('');
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────────────────────
+async function loadAnalytics() {
+    const res  = await apiFetch('/admin/analytics');
+    const data = await res.json();
+
+    document.querySelector('#page-analytics .stat-num:nth-child(1)') // skip — use IDs instead
+    // Just use the bar render for type and platform breakdowns:
+    const total = data.type_breakdown?.reduce((s, t) => s + t.count, 0) || 1;
+    document.getElementById('type-bars').innerHTML = (data.type_breakdown || []).map(t => {
+        const pct = Math.round(t.count / total * 100);
+        return `<div style="margin-bottom:0.85rem">
+            <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px">
+                <span style="color:var(--ink-soft)">${t.type}</span>
+                <span style="font-weight:600;color:var(--ink)">${pct}%</span>
+            </div>
+            <div style="height:8px;background:var(--surface3);border-radius:999px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:999px"></div>
+            </div>
+        </div>`;
+    }).join('');
+
+    const ptotal = data.platform_breakdown?.reduce((s,t) => s + t.count, 0) || 1;
+    document.getElementById('platform-bars').innerHTML = (data.platform_breakdown || []).map(p => {
+        const pct = Math.round(p.count / ptotal * 100);
+        return `<div style="margin-bottom:0.85rem">
+            <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px">
+                <span style="color:var(--ink-soft)">${p.platform}</span>
+                <span style="font-weight:600;color:var(--ink)">${pct}%</span>
+            </div>
+            <div style="height:8px;background:var(--surface3);border-radius:999px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:var(--green);border-radius:999px"></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────
+async function loadSettings() {
+    const res  = await apiFetch('/admin/settings');
+    const data = await res.json();
+    const s    = data.data || {};
+    const siteName = document.querySelector('#page-settings input[value="ScamWatch"]');
+    if (siteName) siteName.value = s.site_name || 'ScamWatch';
+}
+
+// ── DANGER ZONE ───────────────────────────────────────────────────────────
+async function proceedConfirm() {
+    if (document.getElementById('confirm-input').value !== 'CONFIRM') {
+        showToast('Please type CONFIRM to proceed', 'error');
+        return;
+    }
+    const endpointMap = {
+        purge_removed: '/admin/purge-removed',
+        clear_pending: '/admin/clear-pending',
+    };
+    const endpoint = endpointMap[pendingAction];
+    if (!endpoint) return;
+
+    const res  = await apiFetch(endpoint, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) {
+        showToast(`Done — ${data.deleted} records removed`, 'success');
+        closeModal('modal-confirm');
+        loadDashboard();
+    }
+}
+
+// ── INIT — run on page load ───────────────────────────────────────────────
+checkAuth();          // redirect to login if no valid token
+loadDashboard();      // load dashboard data on first open
+
 function switchTab(el,tabId){
   el.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
