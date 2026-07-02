@@ -1,59 +1,71 @@
 from flask import Blueprint, request, jsonify
-from models import ScannerIndicator, Scam
-from database import db
-import re
+from extensions import db
+from models import ScannerIndicator
 
 scanner_bp = Blueprint('scanner', __name__)
 
-# ── POST /api/scanner/check ───────────────────────────────────
-# Used by: the built-in scanner tool on the site
-# Body: { value: "https://fake-site.com" or "+65 9123 4567" }
+
+# ── POST /api/scanner/check ───────────────────────────────────────────────────
+# Check a URL, domain, or phone number against the confirmed scam indicators.
+# This is what powers the "Built-in Scanner" feature shown on introduction.html.
+#
+# Body:    { "value": "ocbc-verify-login.xyz" }
+# Returns: { is_scam, match?, scam?, message }
+#
+# Connect from any scanner input on your site:
+#   const res  = await fetch('http://localhost:5000/api/scanner/check', {
+#       method: 'POST',
+#       headers: { 'Content-Type': 'application/json' },
+#       body: JSON.stringify({ value: inputValue })
+#   });
+#   const data = await res.json();
+#   if (data.is_scam) {
+#       // show red warning with data.match and data.scam
+#   } else {
+#       // show green clear result
+#   }
+# ─────────────────────────────────────────────────────────────────────────────
 @scanner_bp.route('/check', methods=['POST'])
-def check_indicator():
-    data  = request.get_json()
-    value = (data.get('value') or '').strip()
+def check():
+    data  = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Request body must be JSON'}), 400
+
+    value = (data.get('value') or '').strip().lower()
     if not value:
-        return jsonify({'error': 'No value provided'}), 400
+        return jsonify({'error': 'Value is required'}), 400
 
-    # Detect type
-    if re.match(r'^\+?\d[\d\s\-]{7,}$', value):
-        ind_type = 'Phone'
-        query_val = re.sub(r'[\s\-]', '', value)
-    elif re.match(r'^https?://', value) or '/' in value:
-        ind_type = 'URL'
-        query_val = value
-    else:
-        ind_type = 'Domain'
-        query_val = value.lower()
-
-    # Exact match first
+    # 1. Try exact match first
     match = ScannerIndicator.query.filter(
-        db.func.lower(ScannerIndicator.value) == query_val.lower()
+        db.func.lower(ScannerIndicator.value) == value
     ).first()
 
-    # Domain partial match (strip https://, path)
-    if not match and ind_type in ('URL', 'Domain'):
-        domain = re.sub(r'^https?://', '', query_val).split('/')[0]
-        match = ScannerIndicator.query.filter(
-            ScannerIndicator.value.ilike(f'%{domain}%')
-        ).first()
+    # 2. Try substring match — e.g. user pastes full URL, we have just the domain
+    if not match:
+        all_indicators = ScannerIndicator.query.all()
+        for ind in all_indicators:
+            ind_val = ind.value.lower()
+            if ind_val in value or value in ind_val:
+                match = ind
+                break
 
     if match:
         # Increment hit counter
         match.hit_count += 1
         db.session.commit()
 
-        scam = Scam.query.get(match.scam_id) if match.scam_id else None
+        scam_data = None
+        if match.scam and match.scam.status == 'verified':
+            scam_data = match.scam.to_dict()
+
         return jsonify({
-            'result':    'SCAM',
-            'matched':   match.value,
-            'type':      match.type,
-            'report_id': scam.report_id if scam else None,
-            'title':     scam.title     if scam else 'Confirmed scam indicator',
-            'severity':  scam.severity  if scam else 'high',
+            'is_scam': True,
+            'match':   match.to_dict(),
+            'scam':    scam_data,
+            'message': f'⚠️ This {match.type} is flagged as a confirmed scam indicator.',
         }), 200
 
     return jsonify({
-        'result':  'CLEAN',
-        'message': 'No match found in our database. Stay cautious.'
+        'is_scam': False,
+        'message': '✓ No match found in our scam database. Always stay cautious.',
     }), 200

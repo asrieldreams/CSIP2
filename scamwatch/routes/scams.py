@@ -1,193 +1,220 @@
 from flask import Blueprint, request, jsonify, current_app
-from models import Scam, SpamSession, RateLimitRule, generate_report_id
-from database import db
-from datetime import datetime, timedelta
-import hashlib, re
+from extensions import db
+from models import Scam, generate_report_id
+from utils import check_rate_limit, check_duplicate, get_session_token, get_client_ip
+from sqlalchemy import func
+from datetime import datetime
 
 scams_bp = Blueprint('scams', __name__)
 
-# ── GET /api/scams ────────────────────────────────────────────
-# Used by: existingscams.html — browse all verified scams
-# Query params: page, per_page, search, type, severity, status, platform, sort
+VALID_TYPES     = ('phishing','sms','investment','ecommerce','impersonation','job','love','malware','other')
+VALID_SEVERITIES = ('low', 'medium', 'high')
+VALID_STATUSES  = ('pending', 'verified', 'flagged', 'removed')
+
+
+# ── GET /api/scams ────────────────────────────────────────────────────────────
+# Public browse — powers existingscams.html
+# Only returns verified scams. All filters and sorting supported.
+#
+# Query params:
+#   page, per_page, search, type, severity, platform, sort
+#
+# Connect in existingscams.html fetchScams():
+#   const res  = await fetch(`http://localhost:5000/api/scams?${params}`);
+#   const data = await res.json();
+#   // data.data = array of scams, data.total, data.pages
+# ─────────────────────────────────────────────────────────────────────────────
 @scams_bp.route('/scams', methods=['GET'])
 def get_scams():
-    page     = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page',
-                   current_app.config['SCAMS_PER_PAGE']))
-    search   = request.args.get('search', '').strip()
-    scam_type = request.args.get('type', '')
-    severity  = request.args.get('severity', '')
-    status    = request.args.get('status', '')
-    platform  = request.args.get('platform', '')
-    sort      = request.args.get('sort', 'date_desc')
+    page      = max(1, int(request.args.get('page', 1)))
+    per_page  = min(50, max(1, int(request.args.get('per_page',
+                    current_app.config['SCAMS_PER_PAGE']))))
+    search    = request.args.get('search',   '').strip()
+    scam_type = request.args.get('type',     '').strip()
+    severity  = request.args.get('severity', '').strip()
+    platform  = request.args.get('platform', '').strip()
+    sort      = request.args.get('sort',     'date_desc')
 
-    # Public endpoint — only show verified scams unless status explicitly set
-    if not status:
-        status = 'verified'
+    q = Scam.query.filter(Scam.status == 'verified')
 
-    q = Scam.query
-
-    if status:
-        q = q.filter(Scam.status == status)
     if search:
-        q = q.filter(
-            db.or_(
-                Scam.title.ilike(f'%{search}%'),
-                Scam.description.ilike(f'%{search}%'),
-                Scam.url.ilike(f'%{search}%'),
-                Scam.phone_number.ilike(f'%{search}%')
-            )
-        )
-    if scam_type:
+        like = f'%{search}%'
+        q = q.filter(db.or_(
+            Scam.title.ilike(like),
+            Scam.description.ilike(like),
+            Scam.url.ilike(like),
+            Scam.phone_number.ilike(like),
+        ))
+    if scam_type and scam_type in VALID_TYPES:
         q = q.filter(Scam.type == scam_type)
-    if severity:
+    if severity and severity in VALID_SEVERITIES:
         q = q.filter(Scam.severity == severity)
     if platform:
-        q = q.filter(Scam.platform == platform)
+        q = q.filter(Scam.platform.ilike(f'%{platform}%'))
 
-    # Sorting
-    sort_map = {
-        'date_desc':     Scam.created_at.desc(),
-        'date_asc':      Scam.created_at.asc(),
-        'severity_desc': db.case(
-            {'high': 3, 'medium': 2, 'low': 1}, value=Scam.severity
-        ).desc(),
-        'reports_desc':  Scam.report_count.desc(),
+    sort_options = {
+        'date_desc':    Scam.created_at.desc(),
+        'date_asc':     Scam.created_at.asc(),
+        'reports_desc': Scam.report_count.desc(),
     }
-    q = q.order_by(sort_map.get(sort, Scam.created_at.desc()))
+    q = q.order_by(sort_options.get(sort, Scam.created_at.desc()))
 
-    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    total      = q.count()
+    scams      = q.offset((page - 1) * per_page).limit(per_page).all()
 
     return jsonify({
-        'data':     [s.to_dict() for s in pagination.items],
-        'total':    pagination.total,
+        'data':     [s.to_dict() for s in scams],
+        'total':    total,
         'page':     page,
         'per_page': per_page,
-        'pages':    pagination.pages,
+        'pages':    max(1, (total + per_page - 1) // per_page),
     }), 200
 
-# ── GET /api/scams/stats ──────────────────────────────────────
-# Used by: introduction.html hero stats + existingscams.html header
+
+# ── GET /api/scams/stats ──────────────────────────────────────────────────────
+# Returns headline numbers for introduction.html and existingscams.html stat cards
+#
+# Connect in existingscams.html fetchStats():
+#   const res  = await fetch('http://localhost:5000/api/scams/stats');
+#   const data = await res.json();
+#   // data.total, data.today, data.high_severity, data.verified
+# ─────────────────────────────────────────────────────────────────────────────
 @scams_bp.route('/scams/stats', methods=['GET'])
 def get_stats():
     today = datetime.utcnow().date()
     return jsonify({
-        'total':         Scam.query.count(),
+        'total':         Scam.query.filter(Scam.status != 'removed').count(),
         'today':         Scam.query.filter(
-                             db.func.date(Scam.created_at) == today).count(),
-        'high_severity': Scam.query.filter_by(severity='high').count(),
+                             func.date(Scam.created_at) == today,
+                             Scam.status != 'removed'
+                         ).count(),
+        'high_severity': Scam.query.filter_by(severity='high', status='verified').count(),
         'verified':      Scam.query.filter_by(status='verified').count(),
-        'pending':       Scam.query.filter_by(status='pending').count(),
-        'flagged':       Scam.query.filter_by(status='flagged').count(),
     }), 200
 
-# ── GET /api/scams/<id> ───────────────────────────────────────
-# Used by: existingscams.html detail modal
-@scams_bp.route('/scams/<int:id>', methods=['GET'])
-def get_scam(id):
-    scam = Scam.query.get_or_404(id)
+
+# ── GET /api/scams/<id> ───────────────────────────────────────────────────────
+# Single scam detail — powers the detail modal in existingscams.html
+#
+# Connect in existingscams.html fetchScamById(id):
+#   const res  = await fetch(`http://localhost:5000/api/scams/${id}`);
+#   const data = await res.json();
+# ─────────────────────────────────────────────────────────────────────────────
+@scams_bp.route('/scams/<int:scam_id>', methods=['GET'])
+def get_scam(scam_id):
+    scam = Scam.query.filter_by(id=scam_id, status='verified').first()
+    if not scam:
+        return jsonify({'error': 'Scam not found'}), 404
+
     data = scam.to_dict()
     data['timeline'] = [
-        {'text': f'Report submitted by community member',
+        {'text': 'Report submitted anonymously by community member',
          'time': scam.created_at.strftime('%d %b %Y, %H:%M')},
-        {'text': 'Automated scan flagged as suspicious',
-         'time': '~5 min later'},
-        {'text': f'Status: <strong>{scam.status}</strong>',
-         'time': scam.updated_at.strftime('%d %b %Y, %H:%M')
-                 if scam.updated_at else '—'},
+        {'text': 'Automated duplicate and spam checks passed',
+         'time': '~2 minutes later'},
+        {'text': 'Verified and published by ScamWatch moderation team',
+         'time': '~2 hours later'},
+        {'text': 'URL/number added to scanner indicators automatically',
+         'time': '~2h 5m after report'},
     ]
     return jsonify(data), 200
 
-# ── POST /api/scams ───────────────────────────────────────────
-# Used by: reportscam.html form submission
-# Body: { title, description, type, severity, platform, url,
-#         phone_number, amount_lost, session_token }
+
+# ── POST /api/scams ───────────────────────────────────────────────────────────
+# Submit a new anonymous scam report — powers reportscam.html
+#
+# Body: {
+#   type*:        'phishing' | 'sms' | 'investment' | 'ecommerce' |
+#                 'impersonation' | 'job' | 'love' | 'malware' | 'other'
+#   title*:       string
+#   description*: string
+#   platform:     string  (optional)
+#   url:          string  (optional)
+#   phone_number: string  (optional)
+#   amount_lost:  number  (optional)
+#   severity:     'low' | 'medium' | 'high'  (optional, defaults to medium)
+# }
+#
+# Returns: { report_id, message, duplicate? }
+#
+# Connect in reportscam.html submitReport():
+#   const res  = await fetch('http://localhost:5000/api/scams', {
+#       method: 'POST',
+#       headers: { 'Content-Type': 'application/json' },
+#       body: JSON.stringify(formData)
+#   });
+#   const data = await res.json();
+#   document.getElementById('report-id-text').textContent = data.report_id;
+# ─────────────────────────────────────────────────────────────────────────────
 @scams_bp.route('/scams', methods=['POST'])
 def submit_scam():
-    data  = request.get_json()
-    ip    = request.remote_addr
-    token = data.get('session_token') or hashlib.sha256(ip.encode()).hexdigest()
+    # 1. Rate limit check (anonymous, IP-based)
+    allowed, reason = check_rate_limit()
+    if not allowed:
+        return jsonify({'error': reason}), 429
 
-    # ── Rate limit check ──────────────────────────────────────
-    rule_hour    = RateLimitRule.query.filter_by(rule_key='max_per_hour').first()
-    rule_captcha = RateLimitRule.query.filter_by(rule_key='captcha_after').first()
-    max_per_hour = rule_hour.rule_value    if rule_hour    else 5
-    captcha_after = rule_captcha.rule_value if rule_captcha else 3
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Request body must be JSON'}), 400
 
-    cutoff = datetime.utcnow() - timedelta(hours=1)
-    recent_count = SpamSession.query.filter(
-        SpamSession.session_token == token,
-        SpamSession.created_at >= cutoff
-    ).count()
+    # 2. Validate required fields
+    title       = (data.get('title')       or '').strip()
+    description = (data.get('description') or '').strip()
+    scam_type   = (data.get('type')        or '').strip()
 
-    if recent_count >= max_per_hour:
-        spam = SpamSession(
-            session_token=token, ip_address=ip,
-            reason=f'{recent_count + 1} submissions in 1 hour (rate limit hit)',
-            submit_count=recent_count + 1, is_blocked=True
-        )
-        db.session.add(spam)
-        db.session.commit()
-        return jsonify({'error': 'Rate limit exceeded. Please try again later.'}), 429
+    errors = {}
+    if not title:       errors['title']       = 'Title is required'
+    if not description: errors['description'] = 'Description is required'
+    if not scam_type:   errors['type']        = 'Scam type is required'
+    elif scam_type not in VALID_TYPES:
+        errors['type'] = f'Invalid type. Must be one of: {", ".join(VALID_TYPES)}'
 
-    # ── Duplicate check ───────────────────────────────────────
-    rule_dupe = RateLimitRule.query.filter_by(rule_key='dupe_window_hours').first()
-    dupe_hours = rule_dupe.rule_value if rule_dupe else 24
-    dupe_cutoff = datetime.utcnow() - timedelta(hours=dupe_hours)
+    severity = (data.get('severity') or 'medium').strip()
+    if severity not in VALID_SEVERITIES:
+        severity = 'medium'
 
-    if data.get('url'):
-        existing = Scam.query.filter(
-            Scam.url == data['url'],
-            Scam.created_at >= dupe_cutoff
-        ).first()
-        if existing:
-            existing.report_count += 1
-            db.session.commit()
-            return jsonify({
-                'message': 'Duplicate report detected — report count updated.',
-                'report_id': existing.report_id
-            }), 200
+    if errors:
+        return jsonify({'error': 'Validation failed', 'fields': errors}), 422
 
-    # ── Validate required fields ──────────────────────────────
-    required = ['title', 'description', 'type']
-    for field in required:
-        if not data.get(field):
-            return jsonify({'error': f'Missing required field: {field}'}), 400
+    url          = (data.get('url')          or '').strip() or None
+    phone_number = (data.get('phone_number') or '').strip() or None
+    amount_lost  = data.get('amount_lost')
+    platform     = (data.get('platform')     or '').strip() or None
 
-    # ── Create the scam report ────────────────────────────────
+    # 3. Duplicate check — if same URL/title seen recently, increment count
+    is_dupe, existing_id = check_duplicate(url=url, title=title)
+    if is_dupe:
+        return jsonify({
+            'report_id': existing_id,
+            'message':   'This scam has already been reported. We\'ve updated the report count — thank you!',
+            'duplicate': True,
+        }), 200
+
+    # 4. Save new report
+    # Generate a unique report_id (retry on collision)
+    while True:
+        rid = generate_report_id()
+        if not Scam.query.filter_by(report_id=rid).first():
+            break
+
     scam = Scam(
-        report_id    = generate_report_id(),
-        title        = data['title'].strip(),
-        description  = data['description'].strip(),
-        type         = data['type'],
-        severity     = data.get('severity', 'medium'),
+        report_id    = rid,
+        title        = title,
+        description  = description,
+        type         = scam_type,
+        severity     = severity,
+        platform     = platform,
+        url          = url,
+        phone_number = phone_number,
+        amount_lost  = float(amount_lost) if amount_lost else None,
         status       = 'pending',
-        platform     = data.get('platform'),
-        url          = data.get('url'),
-        phone_number = data.get('phone_number'),
-        amount_lost  = data.get('amount_lost') or None,
+        report_count = 1,
     )
     db.session.add(scam)
-
-    # ── Log session for anti-spam tracking ───────────────────
-    if recent_count >= captcha_after - 1:
-        spam = SpamSession(
-            session_token=token, ip_address=ip,
-            reason=f'Reached captcha threshold ({captcha_after} submissions)',
-            submit_count=recent_count + 1
-        )
-        db.session.add(spam)
-
     db.session.commit()
 
-    # ── Auto-verify if report_count threshold met ─────────────
-    rule_verify = RateLimitRule.query.filter_by(
-        rule_key='auto_verify_threshold').first()
-    if rule_verify and scam.report_count >= rule_verify.rule_value:
-        scam.status = 'verified'
-        db.session.commit()
-
     return jsonify({
-        'message':   'Report submitted successfully.',
-        'report_id': scam.report_id
+        'report_id': scam.report_id,
+        'message':   'Your report has been submitted and will be reviewed shortly. Thank you for helping protect Singapore!',
+        'duplicate': False,
     }), 201

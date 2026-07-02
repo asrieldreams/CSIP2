@@ -1,63 +1,63 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
+from werkzeug.security import check_password_hash
+from datetime import datetime
+from extensions import db
 from models import Admin, AuditLog
-from database import db
-from datetime import datetime, timedelta
-import bcrypt, jwt
+from utils import make_token, require_admin, log_audit
 
 auth_bp = Blueprint('auth', __name__)
 
-def _make_token(admin):
-    payload = {
-        'admin_id': admin.id,
-        'role':     admin.role,
-        'exp':      datetime.utcnow() + timedelta(
-                        hours=current_app.config['JWT_EXPIRY_HOURS'])
-    }
-    return jwt.encode(payload, current_app.config['JWT_SECRET'], algorithm='HS256')
 
-# ── POST /api/auth/login ──────────────────────────────────────
-# Body: { "email": "...", "password": "..." }
-# Used by: admin login modal on introduction.html
+# ── POST /api/auth/login ──────────────────────────────────────────────────────
+# Called by the admin login modal on introduction.html
+# Body:    { "email": "admin@scamwatch.sg", "password": "admin123" }
+# Returns: { "token": "...", "admin": { id, name, email, role, ... } }
+#
+# Connect in introduction.html attemptLogin():
+#   const res  = await fetch('http://localhost:5000/api/auth/login', {
+#       method: 'POST',
+#       headers: { 'Content-Type': 'application/json' },
+#       body: JSON.stringify({ email, password })
+#   });
+#   const data = await res.json();
+#   if (res.ok) {
+#       localStorage.setItem('sw_token', data.token);
+#       window.location.href = 'admindashboard.html';
+#   }
+# ─────────────────────────────────────────────────────────────────────────────
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({'error': 'Email and password required'}), 400
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Request body must be JSON'}), 400
 
-    admin = Admin.query.filter_by(email=data['email']).first()
-    if not admin:
-        return jsonify({'error': 'Invalid credentials'}), 401
+    email = (data.get('email') or '').strip().lower()
+    pwd   = data.get('password') or ''
 
-    if not bcrypt.checkpw(data['password'].encode(), admin.password.encode()):
-        return jsonify({'error': 'Invalid credentials'}), 401
+    if not email or not pwd:
+        return jsonify({'error': 'Email and password are required'}), 400
 
+    admin = Admin.query.filter_by(email=email).first()
+    if not admin or not check_password_hash(admin.password, pwd):
+        return jsonify({'error': 'Invalid email or password'}), 401
+
+    # Update last login timestamp
     admin.last_login = datetime.utcnow()
-    db.session.commit()
-
-    log = AuditLog(admin_id=admin.id, action='Login',
-                   target_type='admin', target_ref=admin.email,
-                   detail='Admin logged in')
-    db.session.add(log)
+    log_audit(admin.id, 'Login', 'admin', admin.id, admin.email, 'Admin logged in')
     db.session.commit()
 
     return jsonify({
-        'token': _make_token(admin),
-        'admin': admin.to_dict()
+        'token': make_token(admin),
+        'admin': admin.to_dict(),
     }), 200
 
-# ── GET /api/auth/me ──────────────────────────────────────────
+
+# ── GET /api/auth/me ──────────────────────────────────────────────────────────
+# Verify a stored token and return current admin info.
 # Header: Authorization: Bearer <token>
+# Used by admindashboard.html on page load to verify the session is still valid.
+# ─────────────────────────────────────────────────────────────────────────────
 @auth_bp.route('/me', methods=['GET'])
+@require_admin
 def me():
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    try:
-        payload = jwt.decode(token, current_app.config['JWT_SECRET'],
-                             algorithms=['HS256'])
-        admin = Admin.query.get(payload['admin_id'])
-        if not admin:
-            return jsonify({'error': 'Admin not found'}), 404
-        return jsonify(admin.to_dict()), 200
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token expired'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+    return jsonify(request.current_admin.to_dict()), 200

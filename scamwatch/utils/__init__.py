@@ -1,32 +1,69 @@
-import random
 import hashlib
-from datetime import datetime
-from flask import request
+import jwt
+from functools import wraps
+from datetime import datetime, timedelta
+from flask import request, jsonify, current_app
 from extensions import db
-from models import AuditLog, SpamSession, RateLimitRule, ScannerIndicator, IndicatorType, IndicatorSource
+from models import Admin, AuditLog, SpamSession, RateLimitRule, ScannerIndicator
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REPORT ID GENERATOR
+# JWT AUTH DECORATOR
+# Protects all admin routes — use @require_admin on any route function
 # ─────────────────────────────────────────────────────────────────────────────
+def require_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get('Authorization', '')
+        if not auth.startswith('Bearer '):
+            return jsonify({'error': 'Missing authorization token'}), 401
+        token = auth.replace('Bearer ', '').strip()
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config['JWT_SECRET'],
+                algorithms=['HS256']
+            )
+            admin = Admin.query.get(payload.get('admin_id'))
+            if not admin:
+                return jsonify({'error': 'Admin not found'}), 401
+            # Attach admin to request so route can use it
+            request.current_admin = admin
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired — please log in again'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
-def generate_report_id():
-    """Generate a unique report ID like SS-2025-47201."""
-    from models import Scam
-    year = datetime.utcnow().year
-    while True:
-        num = random.randint(10000, 99999)
-        report_id = f"SS-{year}-{num}"
-        if not Scam.query.filter_by(report_id=report_id).first():
-            return report_id
+
+def require_super_admin(f):
+    """Extra decorator — use on top of @require_admin for dangerous actions."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.current_admin.role != 'super_admin':
+            return jsonify({'error': 'Super admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def make_token(admin):
+    """Create a signed JWT for an admin account."""
+    payload = {
+        'admin_id': admin.id,
+        'role':     admin.role,
+        'exp':      datetime.utcnow() + timedelta(
+                        hours=current_app.config['JWT_EXPIRY_HOURS'])
+    }
+    return jwt.encode(payload, current_app.config['JWT_SECRET'], algorithm='HS256')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AUDIT LOGGER
+# Call after every admin action — writes to audit_log table
 # ─────────────────────────────────────────────────────────────────────────────
-
-def log_audit(admin_id, action, target_type=None, target_id=None, target_ref=None, detail=None):
-    """Write an entry to the audit log. Call this after every admin action."""
+def log_audit(admin_id, action, target_type=None, target_id=None,
+              target_ref=None, detail=None):
     entry = AuditLog(
         admin_id    = admin_id,
         action      = action,
@@ -36,56 +73,64 @@ def log_audit(admin_id, action, target_type=None, target_id=None, target_ref=Non
         detail      = detail,
     )
     db.session.add(entry)
-    # Note: caller must commit — don't commit here so it's part of the same transaction
+    # Caller is responsible for db.session.commit()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RATE LIMITER (anonymous, IP + session based)
+# RATE LIMITER
+# Called before every anonymous report submission
+# Uses IP address + User-Agent fingerprint — no personal data stored
 # ─────────────────────────────────────────────────────────────────────────────
-
 def get_client_ip():
-    """Get real IP even behind a proxy."""
-    return request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+    """Get real IP, works behind proxies like nginx."""
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or '0.0.0.0'
+
 
 def get_session_token():
-    """Generate a fingerprint from IP + User-Agent (anonymous, no personal data)."""
-    raw = f"{get_client_ip()}:{request.headers.get('User-Agent', '')}"
+    """SHA-256 fingerprint from IP + User-Agent. Anonymous — no personal data."""
+    ip  = get_client_ip()
+    ua  = request.headers.get('User-Agent', '')
+    raw = f"{ip}:{ua}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
-def get_rule(key, default):
-    """Fetch a rate limit rule value from DB, fallback to default."""
+
+def get_rule_value(key, default):
+    """Fetch a rate limit rule value from the DB."""
     rule = RateLimitRule.query.filter_by(rule_key=key).first()
     return rule.rule_value if rule else default
 
+
 def check_rate_limit():
     """
-    Check if the current session/IP is allowed to submit a report.
-    Returns (allowed: bool, reason: str or None)
+    Returns (allowed: bool, reason: str or None).
+    If not allowed, the caller should return 429.
     """
-    from datetime import timedelta
-    ip            = get_client_ip()
-    token         = get_session_token()
-    max_per_hour  = get_rule('max_per_hour', 5)
-    cooldown_mins = get_rule('cooldown_minutes', 60)
-    cutoff        = datetime.utcnow() - timedelta(hours=1)
+    ip           = get_client_ip()
+    token        = get_session_token()
+    max_per_hour = get_rule_value('max_per_hour', 5)
+    cutoff       = datetime.utcnow() - timedelta(hours=1)
 
-    # Check if IP is fully blocked
+    # Hard block check — IP marked as blocked by admin
     blocked = SpamSession.query.filter_by(ip_address=ip, is_blocked=True).first()
     if blocked:
-        return False, 'IP address is blocked due to abuse'
+        return False, 'Your IP address has been blocked due to abuse'
 
-    # Count submissions in last hour for this session
-    recent_count = SpamSession.query.filter(
+    # Count this session's submissions in the last hour
+    recent = SpamSession.query.filter(
         SpamSession.session_token == token,
-        SpamSession.created_at >= cutoff
+        SpamSession.created_at   >= cutoff
     ).count()
 
-    if recent_count >= max_per_hour:
+    if recent >= max_per_hour:
+        # Log the violation
         spam = SpamSession(
-            session_token=token,
-            ip_address=ip,
-            reason=f'{max_per_hour} submissions in 1 hour (rate limit hit)',
-            submit_count=recent_count + 1,
+            session_token = token,
+            ip_address    = ip,
+            reason        = f'{recent + 1} submissions in 1 hour (rate limit hit)',
+            submit_count  = recent + 1,
         )
         db.session.add(spam)
         db.session.commit()
@@ -93,33 +138,33 @@ def check_rate_limit():
 
     return True, None
 
+
 def check_duplicate(url=None, title=None):
     """
-    Check if a very similar report was submitted recently.
+    Checks if a very similar report was submitted recently.
+    If duplicate found, increments report_count on the existing scam.
     Returns (is_duplicate: bool, existing_report_id: str or None)
     """
-    from models import Scam, ScamStatus
-    from datetime import timedelta
-    dupe_hours = get_rule('dupe_window_hours', 24)
+    from models import Scam
+    dupe_hours = get_rule_value('dupe_window_hours', 24)
     cutoff     = datetime.utcnow() - timedelta(hours=dupe_hours)
 
-    if url:
+    if url and url.strip():
         existing = Scam.query.filter(
-            Scam.url == url,
+            Scam.url       == url.strip(),
             Scam.created_at >= cutoff,
-            Scam.status != ScamStatus.removed
+            Scam.status    != 'removed'
         ).first()
         if existing:
-            # Increment report_count on the existing record instead
             existing.report_count += 1
             db.session.commit()
             return True, existing.report_id
 
-    if title:
+    if title and title.strip():
         existing = Scam.query.filter(
-            Scam.title == title,
+            Scam.title     == title.strip(),
             Scam.created_at >= cutoff,
-            Scam.status != ScamStatus.removed
+            Scam.status    != 'removed'
         ).first()
         if existing:
             existing.report_count += 1
@@ -130,37 +175,38 @@ def check_duplicate(url=None, title=None):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AUTO-POPULATE SCANNER INDICATORS
+# AUTO-ADD SCANNER INDICATORS
+# Called automatically when an admin verifies a scam
+# Extracts URL, domain, and phone from the scam record and adds them
 # ─────────────────────────────────────────────────────────────────────────────
-
 def auto_add_indicators(scam, admin_id=None):
-    """
-    When a scam is verified, auto-add its URL/domain/phone
-    to scanner_indicators if not already present.
-    """
-    entries = []
+    """Extract URL/domain/phone from a verified scam and add to scanner_indicators."""
+    to_add = []
 
-    if scam.url:
-        # Extract domain from full URL
-        domain = scam.url.split('/')[0].lower()
-        if not ScannerIndicator.query.filter_by(value=scam.url).first():
-            entries.append(ScannerIndicator(
-                value=scam.url, type=IndicatorType.URL,
-                scam_id=scam.id, source=IndicatorSource.auto, added_by=admin_id
+    if scam.url and scam.url.strip():
+        url = scam.url.strip()
+        # Add full URL
+        if not ScannerIndicator.query.filter_by(value=url).first():
+            to_add.append(ScannerIndicator(
+                value=url, type='URL', scam_id=scam.id,
+                source='auto', added_by=admin_id
             ))
-        if domain != scam.url and not ScannerIndicator.query.filter_by(value=domain).first():
-            entries.append(ScannerIndicator(
-                value=domain, type=IndicatorType.Domain,
-                scam_id=scam.id, source=IndicatorSource.auto, added_by=admin_id
-            ))
-
-    if scam.phone_number:
-        cleaned = scam.phone_number.replace(' ', '')
-        if not ScannerIndicator.query.filter_by(value=cleaned).first():
-            entries.append(ScannerIndicator(
-                value=cleaned, type=IndicatorType.Phone,
-                scam_id=scam.id, source=IndicatorSource.auto, added_by=admin_id
+        # Also add the domain part
+        domain = url.split('/')[0].lower().replace('www.', '')
+        if domain and domain != url and not ScannerIndicator.query.filter_by(value=domain).first():
+            to_add.append(ScannerIndicator(
+                value=domain, type='Domain', scam_id=scam.id,
+                source='auto', added_by=admin_id
             ))
 
-    for entry in entries:
-        db.session.add(entry)
+    if scam.phone_number and scam.phone_number.strip():
+        phone = scam.phone_number.strip().replace(' ', '')
+        if not ScannerIndicator.query.filter_by(value=phone).first():
+            to_add.append(ScannerIndicator(
+                value=phone, type='Phone', scam_id=scam.id,
+                source='auto', added_by=admin_id
+            ))
+
+    for ind in to_add:
+        db.session.add(ind)
+    # Caller commits
