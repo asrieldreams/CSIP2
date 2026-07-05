@@ -1,9 +1,3 @@
-# ============================================================
-#  CSIP2 — Admin Panel Routes
-#  admin.py
-#  Owner: Zavier (Security + Admin Panel)
-# ============================================================
-
 from flask import Blueprint, request, jsonify, session
 from db import get_connection
 import bcrypt
@@ -12,67 +6,55 @@ from security import admin_required, sanitise_text
 
 admin_bp = Blueprint('admin', __name__)
 
-
-# ============================================================
-#  POST /admin/login
-# ============================================================
 @admin_bp.route('/admin/login', methods=['POST'])
 def admin_login():
     data     = request.get_json()
-    username = data.get('username', '').strip()
+    email    = data.get('email', '').strip()
     password = data.get('password', '').strip()
 
-    if not username or not password:
-        return jsonify({'error': 'Username and password are required.'}), 400
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required.'}), 400
 
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT id, password_hash FROM admins WHERE username = %s", (username,)
+                "SELECT id, name, password FROM admins WHERE email = %s", (email,)
             )
             row = cursor.fetchone()
 
         if not row:
-            return jsonify({'error': 'Invalid username or password.'}), 401
+            return jsonify({'error': 'Invalid email or password.'}), 401
 
-        if bcrypt.checkpw(password.encode('utf-8'), row['password_hash'].encode('utf-8')):
+        if bcrypt.checkpw(password.encode('utf-8'), row['password'].encode('utf-8')):
             session['admin_logged_in'] = True
             session['admin_id']        = row['id']
-            session['admin_username']  = username
-            return jsonify({'message': f'Welcome, {username}!'}), 200
+            session['admin_username']  = row['name']
+            return jsonify({'message': f"Welcome, {row['name']}!"}), 200
         else:
-            return jsonify({'error': 'Invalid username or password.'}), 401
+            return jsonify({'error': 'Invalid email or password.'}), 401
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  POST /admin/logout
-# ============================================================
 @admin_bp.route('/admin/logout', methods=['POST'])
 def admin_logout():
     session.clear()
     return jsonify({'message': 'Logged out successfully.'}), 200
 
 
-# ============================================================
-#  GET /admin/reports
-# ============================================================
 @admin_bp.route('/admin/reports', methods=['GET'])
 @admin_required
 def admin_get_reports():
     status = request.args.get('status', 'pending')
-
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type,
                        description, source, status, list_type, submitted_at
-                FROM reports
-                WHERE status = %s
+                FROM reports WHERE status = %s
                 ORDER BY submitted_at ASC
             """, (status,))
             rows = cursor.fetchall()
@@ -90,14 +72,10 @@ def admin_get_reports():
         } for r in rows]
 
         return jsonify({'reports': reports, 'total': len(reports)}), 200
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  POST /admin/review
-# ============================================================
 @admin_bp.route('/admin/review', methods=['POST'])
 @admin_required
 def admin_review():
@@ -120,24 +98,15 @@ def admin_review():
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute("""
-                UPDATE reports
-                SET status = %s, list_type = %s, reviewed_at = %s
+                UPDATE reports SET status = %s, list_type = %s
                 WHERE id = %s
-            """, (new_status, final_list, datetime.now(), report_id))
+            """, (new_status, final_list, report_id))
         conn.commit()
-
-        return jsonify({
-            'message': f'Report {report_id} has been {new_status}.'
-                       + (f' Classified as {final_list}.' if final_list else '')
-        }), 200
-
+        return jsonify({'message': f'Report {report_id} has been {new_status}.'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  GET /admin/stats
-# ============================================================
 @admin_bp.route('/admin/stats', methods=['GET'])
 @admin_required
 def admin_stats():
@@ -146,34 +115,28 @@ def admin_stats():
         with conn.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'pending'")
             pending = cursor.fetchone()['c']
-
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND list_type = 'blacklist'")
             blacklisted = cursor.fetchone()['c']
-
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND list_type = 'whitelist'")
             whitelisted = cursor.fetchone()['c']
-
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'rejected'")
             rejected = cursor.fetchone()['c']
-
-            cursor.execute("SELECT COUNT(*) as c FROM overrides")
-            overrides = cursor.fetchone()['c']
-
+            try:
+                cursor.execute("SELECT COUNT(*) as c FROM overrides")
+                overrides = cursor.fetchone()['c']
+            except Exception:
+                overrides = 0
             cursor.execute("""
-                SELECT scam_type, COUNT(*) as total
-                FROM reports WHERE status = 'approved'
+                SELECT scam_type, COUNT(*) as total FROM reports
+                WHERE status = 'approved'
                 GROUP BY scam_type ORDER BY total DESC
             """)
             by_type = [{'scam_type': r['scam_type'], 'total': r['total']} for r in cursor.fetchall()]
 
         return jsonify({
-            'pending':     pending,
-            'blacklisted': blacklisted,
-            'whitelisted': whitelisted,
-            'rejected':    rejected,
-            'overrides':   overrides,
-            'by_type':     by_type
+            'pending': pending, 'blacklisted': blacklisted,
+            'whitelisted': whitelisted, 'rejected': rejected,
+            'overrides': overrides, 'by_type': by_type
         }), 200
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500

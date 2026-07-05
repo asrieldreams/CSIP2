@@ -60,7 +60,7 @@ def validate_email(email: str) -> bool:
 def sanitise_text(text: str) -> str:
     """Strips HTML tags, removes dangerous chars, limits to 500 chars."""
     text = re.sub(r'<[^>]+>', '', text)
-    text = re.sub(r'[^\w\s\.,!?\-@:/\(\)]', '', text)
+    text = re.sub(r'[^\w\s\.,!?\-@:/\(\)\+]', '', text)
     return text.strip()[:500]
 
 
@@ -133,6 +133,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Here's what I can do:\n"
         "🔍 /check — Check if a URL/phone/email is a scam\n"
         "📢 /report — Report a new scam\n"
+        "📋 /latest — See the 5 most recent scam reports\n"
         "📊 /status — View database stats\n"
         "ℹ️ /about — Learn about CSIP2\n"
         "📖 /help — Show all commands\n\n"
@@ -152,11 +153,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`/check scam@fake-bank.com`\n\n"
         "📢 *Report a scam:*\n"
         "`/report` — Guided step-by-step flow\n\n"
+        "📋 *Latest scam reports:*\n"
+        "`/latest` — See the 5 most recent confirmed scams\n\n"
+        "🔍 *Search the database:*\n"
+        "`/search DBS` — Search reports by keyword\n\n"
         "📊 *View database stats:*\n"
         "`/status` — See live scam report counts\n\n"
         "ℹ️ *About this bot:*\n"
         "`/about` — Learn what CSIP2 is\n\n"
-        "💡 *Auto scan:* Just forward any message with a URL or phone number — I'll check it automatically!\n\n"
+        "💡 *Auto scan:* Just forward any message with a URL or phone number — "
+        "I'll check it automatically!\n\n"
         "⚠️ *Limits:* Max 5 reports per minute.\n\n"
         "🌐 Website: http://csip2.com",
         parse_mode='Markdown'
@@ -203,7 +209,8 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Input is too long. Please shorten it.")
         return
 
-    indicator = sanitise_text(indicator)
+    # Don't sanitise for check — preserve + signs in phone numbers
+    indicator = indicator.strip()[:500]
 
     await update.message.reply_text(
         f"🔍 Checking `{indicator}`...",
@@ -275,6 +282,51 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def latest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/latest — Shows the 5 most recent approved scam reports."""
+    try:
+        response = requests.get(f'{CSIP2_API_BASE}/reports', timeout=5)
+        data     = response.json()
+        reports  = data.get('reports', [])
+
+        if not reports:
+            await update.message.reply_text(
+                "📭 No reports in the database yet.\n"
+                "Use /report to be the first to report a scam!"
+            )
+            return
+
+        # Take the 5 most recent
+        latest = reports[:5]
+
+        lines = []
+        for i, r in enumerate(latest, 1):
+            list_type = r.get('list_type')
+            badge = '🔴' if list_type == 'blacklist' else \
+                    '🟡' if list_type == 'whitelist' else '⏳'
+
+            type_icon = '🔗' if r['indicator_type'] == 'url'   else \
+                        '📞' if r['indicator_type'] == 'phone' else \
+                        '📧' if r['indicator_type'] == 'email' else '💬'
+
+            lines.append(
+                f"*{i}.* {type_icon} `{r['indicator']}`\n"
+                f"   {badge} {r['scam_type']} · 📅 {r['submitted_at'][:10]}"
+            )
+
+        await update.message.reply_text(
+            "📋 *Latest 5 Scam Reports:*\n\n"
+            + "\n\n".join(lines) +
+            "\n\n🌐 View full feed: http://csip2.com/feed",
+            parse_mode='Markdown'
+        )
+
+    except requests.exceptions.RequestException:
+        await update.message.reply_text(
+            "⚠️ Could not reach the server. Please try again later."
+        )
+
+
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/cancel — Cancels any ongoing conversation flow."""
     context.user_data.clear()
@@ -289,3 +341,86 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "❓ I don't recognise that command. Type /help to see what I can do."
     )
+
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/search <keyword> — Search the scam database."""
+    if not context.args:
+        await update.message.reply_text(
+            "⚠️ Please provide a keyword to search.\n"
+            "Example: `/search DBS`\n"
+            "Example: `/search phishing`\n"
+            "Example: `/search shopee`",
+            parse_mode='Markdown'
+        )
+        return
+
+    keyword = ' '.join(context.args).strip()
+
+    if len(keyword) < 2:
+        await update.message.reply_text("⚠️ Keyword too short. Please use at least 2 characters.")
+        return
+
+    if len(keyword) > 100:
+        await update.message.reply_text("⚠️ Keyword too long. Please shorten it.")
+        return
+
+    await update.message.reply_text(
+        f"🔍 Searching for *{keyword}*...",
+        parse_mode='Markdown'
+    )
+
+    try:
+        response = requests.get(
+            f'{CSIP2_API_BASE}/reports',
+            params={'keyword': keyword},
+            timeout=5
+        )
+        data    = response.json()
+        reports = data.get('reports', [])
+
+        if not reports:
+            await update.message.reply_text(
+                f"📭 No results found for *{keyword}*.\n\n"
+                f"💡 If you think this is a scam, use /report to flag it!",
+                parse_mode='Markdown'
+            )
+            return
+
+        # Show max 5 results
+        shown   = reports[:5]
+        total   = data.get('total', len(reports))
+        lines   = []
+
+        for i, r in enumerate(shown, 1):
+            list_type = r.get('list_type')
+            badge = '🔴' if list_type == 'blacklist' else \
+                    '🟡' if list_type == 'whitelist' else '⏳'
+
+            type_icon = '🔗' if r['indicator_type'] == 'url'   else \
+                        '📞' if r['indicator_type'] == 'phone' else \
+                        '📧' if r['indicator_type'] == 'email' else '💬'
+
+            desc = r.get('description', '')
+            desc_line = f"\n   📝 {desc[:60]}..." if len(desc) > 60 else f"\n   📝 {desc}" if desc else ''
+
+            lines.append(
+                f"*{i}.* {type_icon} `{r['indicator']}`\n"
+                f"   {badge} {r['scam_type']}"
+                f"{desc_line}"
+            )
+
+        more_text = f"\n\n_...and {total - 5} more results_" if total > 5 else ''
+
+        await update.message.reply_text(
+            f"🔍 *Search results for \"{keyword}\":*\n"
+            f"Found *{total}* report{'s' if total != 1 else ''}\n\n"
+            + "\n\n".join(lines)
+            + more_text +
+            "\n\n💡 Use /report to flag something not in our database!",
+            parse_mode='Markdown'
+        )
+
+    except requests.exceptions.RequestException:
+        await update.message.reply_text(
+            "⚠️ Could not reach the server. Please try again later."
+        )

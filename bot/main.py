@@ -17,6 +17,7 @@ from telegram.ext import (
 from commands import (
     start, help_command, check_command, about_command,
     report_command, cancel_command, unknown_command, status_command,
+    latest_command, search_command,
     is_rate_limited, detect_indicator_type, sanitise_text,
     check_single_indicator_sync, format_check_result
 )
@@ -48,7 +49,6 @@ SCAM_TYPES = [
 ]
 
 # ── In-memory history store ────────────────────────────────
-# { user_id: [ {indicator, scam_type, submitted_at}, ... ] }
 user_history = {}
 
 
@@ -105,7 +105,6 @@ async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============================================================
 #  FEATURE: /history
-#  Shows the last 5 reports submitted by this user
 # ============================================================
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -120,7 +119,6 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Show last 5 in reverse order (newest first)
     recent = history[-5:][::-1]
     lines  = []
     for i, entry in enumerate(recent, 1):
@@ -138,15 +136,10 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============================================================
 #  FEATURE: Group chat support
-#  Bot scans every message in a group for scam indicators
 # ============================================================
 
 async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Scans messages in group chats automatically.
-    Only replies if a blacklisted or whitelisted indicator is found.
-    Stays silent for clean messages to avoid spam.
-    """
+    """Scans group messages — only replies if something is flagged."""
     text = update.message.text or update.message.caption or ''
     if not text:
         return
@@ -165,7 +158,6 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if status in ('blacklist', 'whitelist'):
             flagged.append(format_check_result(indicator, result))
 
-    # Only reply if something is flagged — don't spam the group
     if flagged:
         sender = update.message.from_user.first_name or 'Someone'
         await update.message.reply_text(
@@ -307,7 +299,8 @@ async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 6 — Sends report to Kaden's Flask API and saves to history."""
+    """Step 6 — Sends report to Flask API, handles duplicates, saves to history."""
+    from datetime import datetime
     user_id   = update.effective_user.id
     indicator = context.user_data.get('indicator')
     scam_type = context.user_data.get('scam_type')
@@ -324,9 +317,9 @@ async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYP
         response = requests.post(
             f'{CSIP2_API_BASE}/report', json=payload, timeout=5
         )
+
         if response.status_code == 201:
-            # ── Save to user history ───────────────────────
-            from datetime import datetime
+            # ── Save to history ────────────────────────────
             if user_id not in user_history:
                 user_history[user_id] = []
             user_history[user_id].append({
@@ -334,7 +327,6 @@ async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYP
                 'scam_type':    scam_type,
                 'submitted_at': datetime.now().strftime('%d %b %Y %H:%M')
             })
-
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="✅ *Report submitted successfully!*\n\n"
@@ -343,11 +335,27 @@ async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYP
                      "💡 Use /history to view your past reports.",
                 parse_mode='Markdown'
             )
+
+        elif response.status_code == 409:
+            # ── Duplicate detected ─────────────────────────
+            data        = response.json()
+            dup_status  = data.get('status', 'pending')
+            status_text = '✅ already approved' if dup_status == 'approved' \
+                          else '⏳ pending admin review'
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"⚠️ *Duplicate Report Detected*\n\n"
+                     f"`{indicator}` has already been reported and is {status_text}.\n\n"
+                     f"💡 Use /check to see its current status.",
+                parse_mode='Markdown'
+            )
+
         else:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="⚠️ Something went wrong. Please try again later."
             )
+
     except requests.exceptions.RequestException:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -386,13 +394,15 @@ def main():
     )
 
     # ── Register all handlers ──────────────────────────────
-    # ORDER MATTERS — specific handlers before catch-all
+    # ORDER MATTERS — all CommandHandlers before unknown_command
     app.add_handler(CommandHandler('start',   start))
     app.add_handler(CommandHandler('help',    help_command))
     app.add_handler(CommandHandler('check',   check_command))
     app.add_handler(CommandHandler('status',  status_command))
     app.add_handler(CommandHandler('about',   about_command))
     app.add_handler(CommandHandler('history', history_command))
+    app.add_handler(CommandHandler('latest',  latest_command))
+    app.add_handler(CommandHandler('search',  search_command))
     app.add_handler(report_conv)
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
@@ -402,7 +412,7 @@ def main():
         auto_scan_message
     ))
 
-    # ── Group chat scan — groups and supergroups ──────────
+    # ── Group chat scan ───────────────────────────────────
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND &
         (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP),

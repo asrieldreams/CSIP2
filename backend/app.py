@@ -4,7 +4,8 @@
 #  Owner: Kaden (Backend Lead)
 # ============================================================
 
-from flask_cors import CORS #new import
+import re
+from flask_cors import CORS
 from flask import Flask, request, jsonify, session
 from db import get_connection
 from datetime import datetime
@@ -13,39 +14,44 @@ from admin import admin_bp
 from security import rate_limit, validate_report_payload, sanitise_text
 
 app = Flask(__name__)
-CORS(app) # This allows your browser extension to safely make API requests
+CORS(app)
 app.secret_key = 'csip2-secret-change-this-before-deployment'
 
-# Register admin routes
 app.register_blueprint(admin_bp)
 
 
 # ============================================================
-#  TEST ROUTE — confirms DB connection is working
+#  HELPER — Normalize indicators
+#  Strips spaces/dashes from phone numbers so +65 8123 4567
+#  and +6581234567 are treated as the same indicator
+# ============================================================
+def normalize_indicator(indicator: str) -> str:
+    cleaned = re.sub(r'[\s\-]', '', indicator.strip())
+    if re.match(r'^\+?\d{8,15}$', cleaned):
+        return cleaned
+    return indicator.strip()
+
+
+# ============================================================
+#  TEST ROUTE
 #  GET /
 # ============================================================
 @app.route('/')
 def home():
     try:
         conn = get_connection()
-
         with conn.cursor() as cursor:
-            # Check database connection and list tables
             cursor.execute("SHOW TABLES")
             tables = cursor.fetchall()
-
         return jsonify({
-            'status': 'connected',
-            'database': 'online',
+            'status':       'connected',
+            'database':     'online',
             'tables_found': len(tables),
-            'tables': tables
+            'tables':       tables
         }), 200
-
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 # ============================================================
 #  ENDPOINT 1: POST /report
@@ -56,17 +62,47 @@ def home():
 def submit_report():
     data = request.get_json()
 
-    # Validate all fields using Zavier's security.py
+    # Validate all fields
     is_valid, error = validate_report_payload(data)
     if not is_valid:
         return jsonify({'error': error}), 400
 
-    # Sanitise free text before saving
-    indicator   = sanitise_text(data['indicator'])
+    # Sanitise and normalize
+    indicator   = normalize_indicator(sanitise_text(data['indicator']))
     description = sanitise_text(data.get('description', ''))
 
     try:
         conn = get_connection()
+
+        # ── Duplicate check ────────────────────────────────
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, status FROM reports
+                WHERE indicator = %s
+                LIMIT 1
+            """, (indicator,))
+            existing = cursor.fetchone()
+
+        if existing:
+            status = existing['status']
+
+            if status == 'approved':
+                return jsonify({
+                    'error':     'This indicator has already been reported and approved.',
+                    'duplicate': True,
+                    'status':    'approved'
+                }), 409
+
+            elif status == 'pending':
+                return jsonify({
+                    'error':     'This indicator has already been reported and is pending review.',
+                    'duplicate': True,
+                    'status':    'pending'
+                }), 409
+
+            # If rejected — allow resubmission
+
+        # ── Save to database ───────────────────────────────
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO reports (indicator_type, indicator, scam_type, description, source)
@@ -88,7 +124,6 @@ def submit_report():
 # ============================================================
 #  ENDPOINT 2: GET /reports
 #  Get all approved reports for the public feed
-#  Used by: Caden's frontend
 # ============================================================
 @app.route('/reports', methods=['GET'])
 def get_reports():
@@ -108,8 +143,8 @@ def get_reports():
         query += " AND list_type = %s"
         params.append(list_type)
     if keyword:
-        query += " AND (indicator LIKE %s OR description LIKE %s)"
-        params.extend([f'%{keyword}%', f'%{keyword}%'])
+        query += " AND (indicator LIKE %s OR description LIKE %s OR scam_type LIKE %s)"
+        params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
     query += " ORDER BY submitted_at DESC"
 
@@ -141,7 +176,6 @@ def get_reports():
 # ============================================================
 #  ENDPOINT 3: GET /check
 #  Check if a URL/phone/email is flagged
-#  Used by: Bin Zheng's extension + Alyosius's bot
 # ============================================================
 @app.route('/check', methods=['GET'])
 def check_indicator():
@@ -149,6 +183,9 @@ def check_indicator():
 
     if not indicator:
         return jsonify({'error': 'Missing indicator parameter'}), 400
+
+    # Normalize before checking so +65 8123 4567 matches +6581234567
+    normalized = normalize_indicator(indicator)
 
     try:
         conn = get_connection()
@@ -159,7 +196,7 @@ def check_indicator():
                 WHERE indicator = %s AND status = 'approved'
                 ORDER BY submitted_at DESC
                 LIMIT 1
-            """, (indicator.strip(),))
+            """, (normalized,))
             row = cursor.fetchone()
 
         if not row:
@@ -203,7 +240,6 @@ def check_indicator():
 # ============================================================
 #  ENDPOINT 4: POST /override
 #  Log when user clicks "Proceed Anyway" on a whitelist warning
-#  Used by: Bin Zheng's extension
 # ============================================================
 @app.route('/override', methods=['POST'])
 def log_override():
