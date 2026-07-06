@@ -229,3 +229,139 @@ class AuditLog(db.Model):
             'detail':      self.detail,
             'ts':          self.created_at.strftime('%Y-%m-%d %H:%M'),
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABLE 8: bot_users
+# Tracks every Telegram user who has interacted with the bot.
+# Replaces the in-memory user_history dict — persists across bot restarts.
+# ─────────────────────────────────────────────────────────────────────────────
+class BotUser(db.Model):
+    __tablename__ = 'bot_users'
+
+    id          = db.Column(db.Integer,     primary_key=True, autoincrement=True)
+    telegram_id = db.Column(db.BigInteger,  nullable=False, unique=True)  # Telegram user ID
+    username    = db.Column(db.String(100))                                # @username (may be null)
+    first_name  = db.Column(db.String(100))
+    is_blocked  = db.Column(db.Boolean,     default=False)                 # Admin can block abusive users
+    first_seen  = db.Column(db.DateTime,    default=datetime.utcnow)
+    last_seen   = db.Column(db.DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    history     = db.relationship('BotHistory',   backref='user', lazy=True, cascade='all, delete-orphan')
+    check_logs  = db.relationship('BotCheckLog',  backref='user', lazy=True, cascade='all, delete-orphan')
+    rate_limits = db.relationship('BotRateLimit', backref='user', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id':          self.id,
+            'telegram_id': self.telegram_id,
+            'username':    self.username,
+            'first_name':  self.first_name,
+            'is_blocked':  self.is_blocked,
+            'first_seen':  self.first_seen.isoformat(),
+            'last_seen':   self.last_seen.isoformat() if self.last_seen else None,
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABLE 9: bot_rate_limits
+# Persistent rate limiting — replaces the in-memory user_report_times dict.
+# Records each action timestamp so rate limits survive bot restarts.
+# ─────────────────────────────────────────────────────────────────────────────
+class BotRateLimit(db.Model):
+    __tablename__ = 'bot_rate_limits'
+
+    id          = db.Column(db.Integer,    primary_key=True, autoincrement=True)
+    telegram_id = db.Column(db.BigInteger, db.ForeignKey('bot_users.telegram_id', ondelete='CASCADE'), nullable=False)
+    action      = db.Column(db.String(20), default='report')    # 'report' or 'check'
+    actioned_at = db.Column(db.DateTime,  default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'telegram_id': self.telegram_id,
+            'action':      self.action,
+            'actioned_at': self.actioned_at.isoformat(),
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABLE 10: bot_history
+# Stores every scam report submitted via the Telegram bot.
+# Replaces the in-memory user_history dict — persists across bot restarts.
+# ─────────────────────────────────────────────────────────────────────────────
+class BotHistory(db.Model):
+    __tablename__ = 'bot_history'
+
+    id          = db.Column(db.Integer,    primary_key=True, autoincrement=True)
+    telegram_id = db.Column(db.BigInteger, db.ForeignKey('bot_users.telegram_id', ondelete='CASCADE'), nullable=False)
+    indicator   = db.Column(db.String(500), nullable=False)     # the URL/phone/email reported
+    scam_type   = db.Column(db.String(50))                      # Phishing, Love Scam, etc.
+    scam_id     = db.Column(db.Integer,    db.ForeignKey('scams.id', ondelete='SET NULL'), nullable=True)
+    report_id   = db.Column(db.String(20))                      # SS-2025-XXXXX
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        from datetime import datetime as dt
+        return {
+            'id':           self.id,
+            'indicator':    self.indicator,
+            'scam_type':    self.scam_type,
+            'report_id':    self.report_id,
+            'submitted_at': self.submitted_at.strftime('%d %b %Y %H:%M'),
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABLE 11: bot_check_logs
+# Logs every /check query and auto-scan hit from the bot.
+# Used for analytics — how many checks per day, what's being looked up, etc.
+# ─────────────────────────────────────────────────────────────────────────────
+class BotCheckLog(db.Model):
+    __tablename__ = 'bot_check_logs'
+
+    id          = db.Column(db.Integer,    primary_key=True, autoincrement=True)
+    telegram_id = db.Column(db.BigInteger, db.ForeignKey('bot_users.telegram_id', ondelete='SET NULL'), nullable=True)
+    indicator   = db.Column(db.String(500), nullable=False)     # what was checked
+    result      = db.Column(db.String(20))                      # 'clean', 'scam', 'not_found'
+    source      = db.Column(db.String(20), default='command')   # 'command' (/check) or 'autoscan'
+    chat_type   = db.Column(db.String(20), default='private')   # 'private' or 'group'
+    checked_at  = db.Column(db.DateTime,  default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id':         self.id,
+            'indicator':  self.indicator,
+            'result':     self.result,
+            'source':     self.source,
+            'chat_type':  self.chat_type,
+            'checked_at': self.checked_at.isoformat(),
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABLE 12: bot_group_chats
+# Tracks every Telegram group the bot has been added to.
+# Useful for knowing how many groups the bot is protecting.
+# ─────────────────────────────────────────────────────────────────────────────
+class BotGroupChat(db.Model):
+    __tablename__ = 'bot_group_chats'
+
+    id           = db.Column(db.Integer,    primary_key=True, autoincrement=True)
+    chat_id      = db.Column(db.BigInteger, nullable=False, unique=True)  # Telegram group chat ID
+    chat_title   = db.Column(db.String(255))
+    is_active    = db.Column(db.Boolean,    default=True)       # False = bot was removed from group
+    alerts_sent  = db.Column(db.Integer,    default=0)          # total scam alerts sent in this group
+    added_at     = db.Column(db.DateTime,   default=datetime.utcnow)
+    last_alert   = db.Column(db.DateTime,   nullable=True)
+
+    def to_dict(self):
+        return {
+            'id':          self.id,
+            'chat_id':     self.chat_id,
+            'chat_title':  self.chat_title,
+            'is_active':   self.is_active,
+            'alerts_sent': self.alerts_sent,
+            'added_at':    self.added_at.isoformat(),
+            'last_alert':  self.last_alert.isoformat() if self.last_alert else None,
+        }

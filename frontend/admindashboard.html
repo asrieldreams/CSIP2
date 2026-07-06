@@ -1800,15 +1800,6 @@ function confirmDanger(action){
   pendingAction=action;
   openModal('modal-confirm');
 }
-function proceedConfirm(){
-  if(document.getElementById('confirm-input').value!=='CONFIRM'){showToast('Please type CONFIRM to proceed','error');return;}
-  if(pendingAction==='purge_removed'){reportsData=reportsData.filter(r=>r.status!=='removed');showToast('Removed reports purged','success');}
-  else if(pendingAction==='clear_pending'){reportsData=reportsData.filter(r=>r.status!=='pending');showToast('Pending queue cleared','info');}
-  closeModal('modal-confirm');
-  renderReportsTable();
-  renderDashboardQueue();
-  updateBadges();
-}
 
 // ─────────────────────────────────────────
 // MODAL HELPERS
