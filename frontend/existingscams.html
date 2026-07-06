@@ -375,48 +375,9 @@ async function apiFetch(endpoint, options = {}) {
     const res = await fetch(`${API}${endpoint}`, { ...options, headers });
     return res;
 }
-// ─────────────────────────────────────────────
 // CONFIGURATION — point this at your Flask API
-// ─────────────────────────────────────────────
-const API_BASE = '/api';  // Change to your Flask base URL e.g. 'http://localhost:5000/api'
 
-/*
-  EXPECTED API ENDPOINTS (Flask / MySQL backend):
-  
-  GET  /api/scams
-       Query params: page, per_page, search, type, severity, status, platform, sort
-       Returns: { data: [...], total: N, page: N, per_page: N, pages: N }
-
-  GET  /api/scams/:id
-       Returns: { ...full scam object with timeline[] }
-
-  GET  /api/scams/stats
-       Returns: { total: N, today: N, high_severity: N, verified: N }
-
-  MySQL table schema (suggested):
-  ─────────────────────────────────────────────
-  CREATE TABLE scams (
-    id           INT AUTO_INCREMENT PRIMARY KEY,
-    report_id    VARCHAR(20)  NOT NULL UNIQUE,
-    type         VARCHAR(50)  NOT NULL,
-    title        VARCHAR(255) NOT NULL,
-    description  TEXT         NOT NULL,
-    url          VARCHAR(500),
-    phone_number VARCHAR(30),
-    platform     VARCHAR(50),
-    severity     ENUM('low','medium','high') DEFAULT 'medium',
-    status       ENUM('unverified','verified','flagged') DEFAULT 'unverified',
-    amount_lost  DECIMAL(10,2),
-    report_count INT          DEFAULT 1,
-    created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME     ON UPDATE CURRENT_TIMESTAMP
-  );
-  ─────────────────────────────────────────────
-*/
-
-// ─────────────────────────────────────────────
 // STATE
-// ─────────────────────────────────────────────
 let state = {
   scams: [],
   total: 0,
@@ -443,13 +404,8 @@ const TYPE_META = {
   other:         { icon: '❓', bg: '#eef1ff' }
 };
 
-// ─────────────────────────────────────────────
-// MOCK DATA — remove this block when backend is ready
-// ─────────────────────────────────────────────
 
-// ─────────────────────────────────────────────
 // API CALLS — swap mock returns with real fetch()
-// ─────────────────────────────────────────────
 // ── REPLACE fetchScams() ──────────────────────────────────────────────────
 async function fetchScams() {
     const params = new URLSearchParams({
@@ -492,37 +448,9 @@ async function fetchScamById(id) {
     }
 }
 
-async function fetchStats() {
-  try {
-    /* REAL FETCH:
-    const res = await fetch(`${API_BASE}/scams/stats`);
-    return await res.json();
-    */
-    await new Promise(r => setTimeout(r, 200));
-    return MOCK_STATS;
-  } catch(e) { return null; }
-}
 
-async function fetchScamById(id) {
-  try {
-    /* REAL FETCH:
-    const res = await fetch(`${API_BASE}/scams/${id}`);
-    return await res.json();
-    */
-    await new Promise(r => setTimeout(r, 150));
-    const s = MOCK_SCAMS.find(x => x.id === id);
-    return { ...s, timeline: [
-      { text: `<strong>Report submitted</strong> by community member`, time: formatDate(s.created_at) },
-      { text: `<strong>Automated scan</strong> flagged URL pattern as suspicious`, time: '5 min later' },
-      { text: `<strong>Verified</strong> by ScamWatch moderation team`, time: '2 hours later' },
-      { text: `<strong>Added to live database</strong> — community protected`, time: '2h 10m after report' },
-    ]};
-  } catch(e) { return null; }
-}
 
-// ─────────────────────────────────────────────
 // RENDER
-// ─────────────────────────────────────────────
 function formatDate(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
@@ -643,9 +571,7 @@ function renderPagination() {
   pag.innerHTML = html;
 }
 
-// ─────────────────────────────────────────────
 // LOAD
-// ─────────────────────────────────────────────
 async function loadScams() {
   if (state.loading) return;
   state.loading = true;
@@ -684,9 +610,7 @@ function animateNum(id, target) {
   }, 30);
 }
 
-// ─────────────────────────────────────────────
 // MODAL
-// ─────────────────────────────────────────────
 async function openModal(id) {
   const overlay = document.getElementById('modal-overlay');
   const body = document.getElementById('modal-body');
@@ -749,9 +673,7 @@ function copyLink(id) {
   navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard'));
 }
 
-// ─────────────────────────────────────────────
 // CONTROLS
-// ─────────────────────────────────────────────
 let searchTimer;
 document.getElementById('search-input').addEventListener('input', function() {
   clearTimeout(searchTimer);
@@ -804,9 +726,7 @@ function showToast(msg) {
 const urlParams = new URLSearchParams(location.search);
 if (urlParams.get('scam')) openModal(parseInt(urlParams.get('scam')));
 
-// ─────────────────────────────────────────────
 // INIT
-// ─────────────────────────────────────────────
 loadStats();
 loadScams();
 </script>

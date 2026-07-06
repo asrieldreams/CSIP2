@@ -1012,14 +1012,6 @@ async function checkAuth() {
 }
 
 
-// Helper — wraps fetch() and adds the JWT token header automatically
-async function apiFetch(endpoint, options = {}) {
-    const token = localStorage.getItem('sw_token');
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
-    return res;
-}
 
 // ─────────────────────────────────────────
 // API BASE — update to your Flask backend
@@ -1631,29 +1623,6 @@ function filterIndicators(v){indFilterSearch=v;renderBlocklistTable();}
 function filterIndicatorType(v){indFilterType=v;renderBlocklistTable();}
 function filterIndicatorSource(v){indFilterSource=v;renderBlocklistTable();}
 
-function renderBlocklistTable(){
-  const tbody=document.getElementById('blocklist-table-body');
-  if(!tbody) return;
-  const data=getFilteredIndicators();
-  const countEl=document.getElementById('ind-count-label');
-  if(countEl) countEl.textContent=`Showing 1–${data.length} of ${data.length}`;
-  if(!data.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">No indicators found</div><p>Try adjusting your filters.</p></div></td></tr>`;return;}
-  tbody.innerHTML=data.map(b=>`
-    <tr>
-      <td><input type="checkbox"></td>
-      <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--red);">${b.type==='Phone'?'📞':'🔗'} ${b.value}</span></td>
-      <td><span class="badge badge-flagged">${b.type}</span></td>
-      <td>${b.report_id?`<span class="td-mono" style="cursor:pointer;color:var(--accent);" title="View source report">${b.report_id}</span>`:`<span style="font-size:0.75rem;color:var(--ink-muted)">Manual entry</span>`}</td>
-      <td><span class="badge ${b.source==='auto'?'badge-verified':'badge-active'}">${b.source==='auto'?'Auto':'Manual'}</span></td>
-      <td><span style="font-size:0.85rem;font-weight:600;color:var(--ink)">${b.hits}</span> <span style="font-size:0.72rem;color:var(--ink-muted)">hits</span></td>
-      <td style="font-size:0.8rem;color:var(--ink-muted)">${b.date}</td>
-      <td>
-        <div class="row-actions">
-          <button class="btn btn-danger btn-sm" onclick="removeFromBlocklist(${b.id})" title="Remove — scanner will no longer flag this">Remove</button>
-        </div>
-      </td>
-    </tr>`).join('');
-}
 
 function renderAuditLog(){
   const tbody=document.getElementById('audit-table-body');
@@ -1760,32 +1729,7 @@ function clearSelection(){
  * Real backend call pattern:
  * fetch(`${API}/admin/reports/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'verified'}) })
  */
-function quickAction(id, action){
-  const r=reportsData.find(x=>x.id===id);
-  if(!r) return;
-  if(action==='verify') r.status='verified';
-  else if(action==='remove') r.status='removed';
-  const msgs={verify:'Report verified and published ✓',remove:'Report removed from database'};
-  showToast(msgs[action]||'Done', action==='verify'?'success':'error');
-  logAudit('Admin', action==='verify'?'Verified':'Removed', r.report_id, r.title);
-  renderReportsTable();
-  renderDashboardQueue();
-  updateBadges();
-  closeModal('modal-review');
-}
 
-function bulkAction(action){
-  const ids=[...selectedRows];
-  ids.forEach(id=>{ const r=reportsData.find(x=>x.id===id); if(r){ if(action==='verify') r.status='verified'; else if(action==='flag') r.status='flagged'; else if(action==='remove') r.status='removed'; }});
-  const msgs={verify:`${ids.length} reports verified`,flag:`${ids.length} reports flagged`,remove:`${ids.length} reports removed`};
-  const types={verify:'success',flag:'info',remove:'error'};
-  showToast(msgs[action], types[action]);
-  logAudit('Admin','Bulk '+action.charAt(0).toUpperCase()+action.slice(1),ids.length+' reports','Bulk action');
-  clearSelection();
-  renderReportsTable();
-  renderDashboardQueue();
-  updateBadges();
-}
 
 function openReviewModal(id){
   const r=reportsData.find(x=>x.id===id);
@@ -1805,48 +1749,15 @@ function openReviewModal(id){
   openModal('modal-review');
 }
 
-function actionReport(action){
-  if(!currentReportId) return;
-  const status = document.getElementById('review-status').value;
-  const severity = document.getElementById('review-severity').value;
-  const r = reportsData.find(x=>x.id===currentReportId);
-  if(r){ r.status = action==='verify' ? 'verified' : action==='remove' ? 'removed' : status; r.severity=severity; }
-  showToast(action==='verify'?'Report verified and published':'Report removed','success');
-  closeModal('modal-review');
-  renderReportsTable();
-  renderDashboardQueue();
-  updateBadges();
-}
 
-function deleteReport(id){
-  reportsData = reportsData.filter(x=>x.id!==id);
-  showToast('Report permanently deleted','error');
-  renderReportsTable();
-  renderFlaggedTable();
-  renderDashboardQueue();
-  updateBadges();
-}
 
 function restoreReport(id){
   const r = reportsData.find(x=>x.id===id);
   if(r){ r.status='pending'; showToast('Report restored to pending queue','success'); renderFlaggedTable(); renderDashboardQueue(); updateBadges(); }
 }
 
-function bulkRemoveFlagged(){
-  const flaggedIds = MOCK_FLAGGED.map(f=>f.id);
-  flaggedIds.forEach(id=>{ reportsData=reportsData.filter(x=>x.id!==id); });
-  showToast('All flagged reports removed','error');
-  renderFlaggedTable();
-  updateBadges();
-}
 
-function dismissSpam(i){MOCK_SPAM.splice(i,1);showToast('Spam session dismissed','success');renderSpamTable();}
-function blockSpamIP(i){showToast('IP blocked and session dismissed','error');MOCK_SPAM.splice(i,1);renderSpamTable();}
-function clearAllSpam(){MOCK_SPAM.length=0;showToast('All spam sessions cleared','success');renderSpamTable();}
-function removeAdmin(i){if(i===0){showToast('Cannot remove owner account','error');return;}MOCK_ADMINS.splice(i,1);showToast('Admin account removed','success');renderAdminsTable();}
-function saveRateRules(){showToast('Rate limit rules saved — connect to backend to persist','success');}
 
-function removeFromBlocklist(id){MOCK_BLOCKLIST.splice(MOCK_BLOCKLIST.findIndex(x=>x.id===id),1);showToast('Entry removed from blocklist','success');renderBlocklistTable();}
 function addToBlocklist(){
   const val=document.getElementById('block-value').value.trim();
   const type=document.getElementById('block-type').value;
@@ -1946,8 +1857,8 @@ function updateBadges(){
 // ─────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────
-renderDashboardQueue();
-renderActivityFeed();
+checkAuth();
+loadDashboard();
 </script>
 </body>
 </html>
