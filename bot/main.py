@@ -8,6 +8,7 @@ import os
 import re
 import logging
 import requests
+from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -19,7 +20,8 @@ from commands import (
     report_command, cancel_command, unknown_command, status_command,
     latest_command, search_command,
     is_rate_limited, detect_indicator_type, sanitise_text,
-    check_single_indicator_sync, format_check_result
+    check_single_indicator_sync, format_check_result,
+    submit_report_to_new_api
 )
 
 # ── Logging ────────────────────────────────────────────────
@@ -45,6 +47,8 @@ SCAM_TYPES = [
     'Impersonation',
     'Love Scam',
     'Investment Scam',
+    'SMS Scam',
+    'Job Scam',
     'Others'
 ]
 
@@ -53,7 +57,7 @@ user_history = {}
 
 
 # ============================================================
-#  AUTO SCAN — Feature 1 & 2
+#  AUTO SCAN
 # ============================================================
 
 def extract_indicators(text: str) -> dict:
@@ -69,7 +73,6 @@ def extract_indicators(text: str) -> dict:
 
 
 async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Triggered on any plain text — auto scans for indicators."""
     text = update.message.text or update.message.caption or ''
     if not text:
         return
@@ -93,10 +96,8 @@ async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         results_text.append(format_check_result(indicator, result))
 
     await update.message.reply_text(
-        "\n\n".join(results_text),
-        parse_mode='Markdown'
+        "\n\n".join(results_text), parse_mode='Markdown'
     )
-
     await update.message.reply_text(
         "💡 *Tip:* Found something not in our database? Use /report to flag it!",
         parse_mode='Markdown'
@@ -104,11 +105,10 @@ async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-#  FEATURE: /history
+#  /history
 # ============================================================
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/history — Shows the user's last 5 submitted reports."""
     user_id = update.message.from_user.id
     history = user_history.get(user_id, [])
 
@@ -135,11 +135,10 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-#  FEATURE: Group chat support
+#  Group chat support
 # ============================================================
 
 async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Scans group messages — only replies if something is flagged."""
     text = update.message.text or update.message.caption or ''
     if not text:
         return
@@ -147,15 +146,13 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
     found = extract_indicators(text)
     all_indicators = [('url', u) for u in found['urls']] + \
                      [('phone', p) for p in found['phones']]
-
     if not all_indicators:
         return
 
     flagged = []
     for _, indicator in all_indicators:
         result = check_single_indicator_sync(indicator)
-        status = result.get('status')
-        if status in ('blacklist', 'whitelist'):
+        if result.get('status') in ('blacklist', 'whitelist'):
             flagged.append(format_check_result(indicator, result))
 
     if flagged:
@@ -174,7 +171,6 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ============================================================
 
 async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 2 — User sends the scam indicator."""
     user_id   = update.message.from_user.id
     indicator = update.message.text.strip()
 
@@ -200,6 +196,10 @@ async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton("📈 Investment Scam", callback_data='Investment Scam'),
+            InlineKeyboardButton("💬 SMS Scam",        callback_data='SMS Scam'),
+        ],
+        [
+            InlineKeyboardButton("💼 Job Scam",        callback_data='Job Scam'),
             InlineKeyboardButton("❓ Others",           callback_data='Others'),
         ],
     ]
@@ -211,7 +211,6 @@ async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def receive_scam_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 3 — User taps a scam type button."""
     query = update.callback_query
     await query.answer()
 
@@ -232,7 +231,6 @@ async def receive_scam_type_callback(update: Update, context: ContextTypes.DEFAU
 
 
 async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 4 — User sends optional description."""
     desc = update.message.text.strip()
     if desc.lower() == '/skip':
         desc = ''
@@ -260,7 +258,6 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/skip — Skip description, go to confirmation."""
     context.user_data['description'] = ''
 
     indicator = context.user_data.get('indicator', '')
@@ -284,7 +281,6 @@ async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 5 — User confirms or cancels."""
     query = update.callback_query
     await query.answer()
 
@@ -294,85 +290,32 @@ async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYP
         return ConversationHandler.END
 
     await query.edit_message_text("⏳ Submitting your report...")
-    await submit_report_to_api(update, context)
-    return ConversationHandler.END
 
-
-async def submit_report_to_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 6 — Sends report to Flask API, handles duplicates, saves to history."""
-    from datetime import datetime
     user_id   = update.effective_user.id
     indicator = context.user_data.get('indicator')
     scam_type = context.user_data.get('scam_type')
 
-    payload = {
-        'indicator_type': context.user_data.get('indicator_type'),
-        'indicator':      indicator,
-        'scam_type':      scam_type,
-        'description':    context.user_data.get('description', ''),
-        'source':         'telegram'
-    }
+    await submit_report_to_new_api(update, context)
 
-    try:
-        response = requests.post(
-            f'{CSIP2_API_BASE}/report', json=payload, timeout=5
-        )
+    # Save to local history
+    if user_id not in user_history:
+        user_history[user_id] = []
+    user_history[user_id].append({
+        'indicator':    indicator,
+        'scam_type':    scam_type,
+        'submitted_at': datetime.now().strftime('%d %b %Y %H:%M')
+    })
 
-        if response.status_code == 201:
-            # ── Save to history ────────────────────────────
-            if user_id not in user_history:
-                user_history[user_id] = []
-            user_history[user_id].append({
-                'indicator':    indicator,
-                'scam_type':    scam_type,
-                'submitted_at': datetime.now().strftime('%d %b %Y %H:%M')
-            })
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="✅ *Report submitted successfully!*\n\n"
-                     "Our admin team will review it shortly.\n"
-                     "Thank you for helping keep Singapore safe! 🇸🇬\n\n"
-                     "💡 Use /history to view your past reports.",
-                parse_mode='Markdown'
-            )
-
-        elif response.status_code == 409:
-            # ── Duplicate detected ─────────────────────────
-            data        = response.json()
-            dup_status  = data.get('status', 'pending')
-            status_text = '✅ already approved' if dup_status == 'approved' \
-                          else '⏳ pending admin review'
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"⚠️ *Duplicate Report Detected*\n\n"
-                     f"`{indicator}` has already been reported and is {status_text}.\n\n"
-                     f"💡 Use /check to see its current status.",
-                parse_mode='Markdown'
-            )
-
-        else:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="⚠️ Something went wrong. Please try again later."
-            )
-
-    except requests.exceptions.RequestException:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="⚠️ Could not reach the server. Please try again later."
-        )
-
-    context.user_data.clear()
+    return ConversationHandler.END
 
 
 # ============================================================
-#  BOT SETUP — main entry point
+#  BOT SETUP
 # ============================================================
 
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # ── Report conversation flow ───────────────────────────
     report_conv = ConversationHandler(
         entry_points=[CommandHandler('report', report_command)],
         states={
@@ -393,8 +336,6 @@ def main():
         fallbacks=[CommandHandler('cancel', cancel_command)]
     )
 
-    # ── Register all handlers ──────────────────────────────
-    # ORDER MATTERS — all CommandHandlers before unknown_command
     app.add_handler(CommandHandler('start',   start))
     app.add_handler(CommandHandler('help',    help_command))
     app.add_handler(CommandHandler('check',   check_command))
@@ -406,13 +347,10 @@ def main():
     app.add_handler(report_conv)
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-    # ── Auto scan — private chats only ────────────────────
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         auto_scan_message
     ))
-
-    # ── Group chat scan ───────────────────────────────────
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND &
         (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP),
