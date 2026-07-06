@@ -14,7 +14,11 @@ def create_app():
 
     # Allow all origins for /api/* so your HTML pages can call the backend.
     # In production, replace "*" with your actual domain.
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    CORS(app, resources={r"/api/*": {
+    "origins": "*",
+    "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
 
     db.init_app(app)
 
