@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from models import (
     Scam, ScannerIndicator, Admin,
     SpamSession, RateLimitRule, SiteSetting, AuditLog,
+    BotUser, BotRateLimit, BotHistory, BotCheckLog, BotGroupChat,
     generate_report_id,
 )
 
@@ -192,6 +193,50 @@ def seed():
         ]
         db.session.add_all(logs)
 
+        # ── 8. BOT USERS ──────────────────────────────────────────────────
+        print("   Seeding bot users...")
+        bot_users = [
+            BotUser(telegram_id=111111111, username='john_sg',    first_name='John',    first_seen=datetime.utcnow()-timedelta(days=30)),
+            BotUser(telegram_id=222222222, username='mary_tan',   first_name='Mary',    first_seen=datetime.utcnow()-timedelta(days=14)),
+            BotUser(telegram_id=333333333, username='ah_kow',     first_name='Wei Kow', first_seen=datetime.utcnow()-timedelta(days=7)),
+            BotUser(telegram_id=444444444, username=None,         first_name='Alice',   first_seen=datetime.utcnow()-timedelta(days=2)),
+            BotUser(telegram_id=555555555, username='sg_user99',  first_name='Ben',     first_seen=datetime.utcnow()-timedelta(hours=5)),
+        ]
+        db.session.add_all(bot_users)
+        db.session.flush()
+
+        # ── 9. BOT HISTORY ────────────────────────────────────────────────
+        print("   Seeding bot history...")
+        bot_history = [
+            BotHistory(telegram_id=111111111, indicator='ocbc-verify-login.xyz',   scam_type='Phishing',        report_id='SS-2025-47201', submitted_at=datetime.utcnow()-timedelta(days=5)),
+            BotHistory(telegram_id=111111111, indicator='+6581234567',             scam_type='Impersonation',   report_id='SS-2025-47198', submitted_at=datetime.utcnow()-timedelta(days=3)),
+            BotHistory(telegram_id=222222222, indicator='dhl-delivery-sg.com',     scam_type='Phishing',        report_id='SS-2025-47140', submitted_at=datetime.utcnow()-timedelta(days=2)),
+            BotHistory(telegram_id=333333333, indicator='+6598765432',             scam_type='Love Scam',       report_id='SS-2025-47155', submitted_at=datetime.utcnow()-timedelta(days=1)),
+            BotHistory(telegram_id=444444444, indicator='sgdeals-app.top',         scam_type='E-Commerce Scam', report_id='SS-2025-47110', submitted_at=datetime.utcnow()-timedelta(hours=6)),
+        ]
+        db.session.add_all(bot_history)
+
+        # ── 10. BOT CHECK LOGS ────────────────────────────────────────────
+        print("   Seeding bot check logs...")
+        bot_check_logs = [
+            BotCheckLog(telegram_id=111111111, indicator='ocbc-verify-login.xyz',  result='scam',     source='command',  chat_type='private', checked_at=datetime.utcnow()-timedelta(hours=10)),
+            BotCheckLog(telegram_id=222222222, indicator='http://legit-shop.com',  result='clean',    source='autoscan', chat_type='private', checked_at=datetime.utcnow()-timedelta(hours=8)),
+            BotCheckLog(telegram_id=333333333, indicator='parcels-sg-redeliver.com',result='scam',    source='autoscan', chat_type='group',   checked_at=datetime.utcnow()-timedelta(hours=5)),
+            BotCheckLog(telegram_id=None,      indicator='+6567650000',            result='scam',     source='autoscan', chat_type='group',   checked_at=datetime.utcnow()-timedelta(hours=3)),
+            BotCheckLog(telegram_id=555555555, indicator='singpass-secure-verify.net', result='scam', source='command', chat_type='private', checked_at=datetime.utcnow()-timedelta(hours=1)),
+        ]
+        db.session.add_all(bot_check_logs)
+
+        # ── 11. BOT GROUP CHATS ───────────────────────────────────────────
+        print("   Seeding bot group chats...")
+        bot_groups = [
+            BotGroupChat(chat_id=-1001234567890, chat_title='TP CDF Class AY24/25',     is_active=True, alerts_sent=12, added_at=datetime.utcnow()-timedelta(days=30)),
+            BotGroupChat(chat_id=-1009876543210, chat_title='Singapore Scam Watch',      is_active=True, alerts_sent=47, added_at=datetime.utcnow()-timedelta(days=14)),
+            BotGroupChat(chat_id=-1005555555555, chat_title='Family Group Chat',          is_active=True, alerts_sent=3,  added_at=datetime.utcnow()-timedelta(days=7)),
+            BotGroupChat(chat_id=-1003333333333, chat_title='Old test group',             is_active=False, alerts_sent=1, added_at=datetime.utcnow()-timedelta(days=60)),
+        ]
+        db.session.add_all(bot_groups)
+
         db.session.commit()
 
         print("\n✅ Seed complete!\n")
@@ -202,6 +247,10 @@ def seed():
         print(f"   rate limit rules   : {RateLimitRule.query.count()}")
         print(f"   site settings      : {SiteSetting.query.count()}")
         print(f"   audit log entries  : {AuditLog.query.count()}")
+        print(f"   bot users          : {BotUser.query.count()}")
+        print(f"   bot history        : {BotHistory.query.count()}")
+        print(f"   bot check logs     : {BotCheckLog.query.count()}")
+        print(f"   bot group chats    : {BotGroupChat.query.count()}")
         print("\nAdmin login credentials:")
         print("   admin@scamwatch.sg    /  admin123   (Super Admin)")
         print("   sarah.t@scamwatch.sg  /  sarah456   (Moderator)")
