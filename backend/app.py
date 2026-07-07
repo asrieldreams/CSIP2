@@ -11,20 +11,17 @@ from db import get_connection
 from datetime import datetime
 
 from admin import admin_bp
+from compat import compat_bp
 from security import rate_limit, validate_report_payload, sanitise_text
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'csip2-secret-change-this-before-deployment'
 
 app.register_blueprint(admin_bp)
+app.register_blueprint(compat_bp)
 
 
-# ============================================================
-#  HELPER — Normalize indicators
-#  Strips spaces/dashes from phone numbers so +65 8123 4567
-#  and +6581234567 are treated as the same indicator
-# ============================================================
 def normalize_indicator(indicator: str) -> str:
     cleaned = re.sub(r'[\s\-]', '', indicator.strip())
     if re.match(r'^\+?\d{8,15}$', cleaned):
@@ -32,10 +29,6 @@ def normalize_indicator(indicator: str) -> str:
     return indicator.strip()
 
 
-# ============================================================
-#  TEST ROUTE
-#  GET /
-# ============================================================
 @app.route('/')
 def home():
     try:
@@ -44,87 +37,54 @@ def home():
             cursor.execute("SHOW TABLES")
             tables = cursor.fetchall()
         return jsonify({
-            'status':       'connected',
-            'database':     'online',
-            'tables_found': len(tables),
-            'tables':       tables
+            'status': 'connected', 'database': 'online',
+            'tables_found': len(tables), 'tables': tables
         }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-# ============================================================
-#  ENDPOINT 1: POST /report
-#  Submit a new scam report (website, bot, or extension)
-# ============================================================
 @app.route('/report', methods=['POST'])
 @rate_limit
 def submit_report():
     data = request.get_json()
-
-    # Validate all fields
     is_valid, error = validate_report_payload(data)
     if not is_valid:
         return jsonify({'error': error}), 400
 
-    # Sanitise and normalize
     indicator   = normalize_indicator(sanitise_text(data['indicator']))
     description = sanitise_text(data.get('description', ''))
 
     try:
         conn = get_connection()
-
-        # ── Duplicate check ────────────────────────────────
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT id, status FROM reports
-                WHERE indicator = %s
-                LIMIT 1
-            """, (indicator,))
+            cursor.execute(
+                "SELECT id, status FROM reports WHERE indicator = %s LIMIT 1",
+                (indicator,)
+            )
             existing = cursor.fetchone()
 
         if existing:
-            status = existing['status']
+            if existing['status'] == 'approved':
+                return jsonify({'error': 'Already reported and approved.',
+                                'duplicate': True, 'status': 'approved'}), 409
+            elif existing['status'] == 'pending':
+                return jsonify({'error': 'Already reported and pending review.',
+                                'duplicate': True, 'status': 'pending'}), 409
 
-            if status == 'approved':
-                return jsonify({
-                    'error':     'This indicator has already been reported and approved.',
-                    'duplicate': True,
-                    'status':    'approved'
-                }), 409
-
-            elif status == 'pending':
-                return jsonify({
-                    'error':     'This indicator has already been reported and is pending review.',
-                    'duplicate': True,
-                    'status':    'pending'
-                }), 409
-
-            # If rejected — allow resubmission
-
-        # ── Save to database ───────────────────────────────
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO reports (indicator_type, indicator, scam_type, description, source)
                 VALUES (%s, %s, %s, %s, %s)
-            """, (
-                data['indicator_type'],
-                indicator,
-                data['scam_type'],
-                description,
-                data['source']
-            ))
+            """, (data['indicator_type'], indicator,
+                  data['scam_type'], description, data['source']))
         conn.commit()
-        return jsonify({'message': 'Report submitted successfully. Pending admin review.'}), 201
+        return jsonify({'message': 'Report submitted. Pending admin review.'}), 201
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  ENDPOINT 2: GET /reports
-#  Get all approved reports for the public feed
-# ============================================================
 @app.route('/reports', methods=['GET'])
 def get_reports():
     scam_type = request.args.get('scam_type')
@@ -154,37 +114,23 @@ def get_reports():
             cursor.execute(query, params)
             rows = cursor.fetchall()
 
-        reports = []
-        for row in rows:
-            reports.append({
-                'id':             row['id'],
-                'indicator_type': row['indicator_type'],
-                'indicator':      row['indicator'],
-                'scam_type':      row['scam_type'],
-                'description':    row['description'],
-                'source':         row['source'],
-                'list_type':      row['list_type'],
-                'submitted_at':   str(row['submitted_at'])
-            })
-
+        reports = [{'id': r['id'], 'indicator_type': r['indicator_type'],
+                    'indicator': r['indicator'], 'scam_type': r['scam_type'],
+                    'description': r['description'], 'source': r['source'],
+                    'list_type': r['list_type'],
+                    'submitted_at': str(r['submitted_at'])} for r in rows]
         return jsonify({'reports': reports, 'total': len(reports)}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  ENDPOINT 3: GET /check
-#  Check if a URL/phone/email is flagged
-# ============================================================
 @app.route('/check', methods=['GET'])
 def check_indicator():
     indicator = request.args.get('url') or request.args.get('indicator')
-
     if not indicator:
         return jsonify({'error': 'Missing indicator parameter'}), 400
 
-    # Normalize before checking so +65 8123 4567 matches +6581234567
     normalized = normalize_indicator(indicator)
 
     try:
@@ -194,76 +140,61 @@ def check_indicator():
                 SELECT id, list_type, scam_type, description
                 FROM reports
                 WHERE indicator = %s AND status = 'approved'
-                ORDER BY submitted_at DESC
-                LIMIT 1
+                ORDER BY submitted_at DESC LIMIT 1
             """, (normalized,))
             row = cursor.fetchone()
 
         if not row:
-            return jsonify({
-                'status':    'clean',
-                'indicator': indicator,
-                'message':   'No reports found for this indicator.'
-            }), 200
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id FROM reports WHERE indicator = %s AND status = 'pending' LIMIT 1",
+                    (normalized,)
+                )
+                pending = cursor.fetchone()
+            if pending:
+                return jsonify({'status': 'pending', 'indicator': indicator,
+                                'message': 'This indicator is pending admin review.'}), 200
+            return jsonify({'status': 'clean', 'indicator': indicator,
+                            'message': 'No reports found.'}), 200
 
         if row['list_type'] == 'blacklist':
-            return jsonify({
-                'status':      'blacklist',
-                'report_id':   row['id'],
-                'indicator':   indicator,
-                'scam_type':   row['scam_type'],
-                'description': row['description'],
-                'message':     'WARNING: This has been confirmed as a scam. Do not proceed.'
-            }), 200
-
+            return jsonify({'status': 'blacklist', 'report_id': row['id'],
+                            'indicator': indicator, 'scam_type': row['scam_type'],
+                            'description': row['description'],
+                            'message': 'WARNING: Confirmed scam. Do not proceed.'}), 200
         elif row['list_type'] == 'whitelist':
-            return jsonify({
-                'status':      'whitelist',
-                'report_id':   row['id'],
-                'indicator':   indicator,
-                'scam_type':   row['scam_type'],
-                'description': row['description'],
-                'message':     'CAUTION: This has been flagged by the community. Proceed with care.'
-            }), 200
-
+            return jsonify({'status': 'whitelist', 'report_id': row['id'],
+                            'indicator': indicator, 'scam_type': row['scam_type'],
+                            'description': row['description'],
+                            'message': 'CAUTION: Flagged. Proceed with care.'}), 200
         else:
-            return jsonify({
-                'status':    'flagged',
-                'indicator': indicator,
-                'message':   'This indicator has been reported but is under review.'
-            }), 200
+            return jsonify({'status': 'flagged', 'indicator': indicator,
+                            'message': 'Reported but under review.'}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-#  ENDPOINT 4: POST /override
-#  Log when user clicks "Proceed Anyway" on a whitelist warning
-# ============================================================
 @app.route('/override', methods=['POST'])
 def log_override():
     data      = request.get_json()
     report_id = data.get('report_id')
     user_ip   = request.remote_addr
-
     if not report_id:
         return jsonify({'error': 'Missing report_id'}), 400
-
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO overrides (report_id, user_ip)
-                VALUES (%s, %s)
-            """, (report_id, user_ip))
+            cursor.execute(
+                "INSERT INTO overrides (report_id, user_ip) VALUES (%s, %s)",
+                (report_id, user_ip)
+            )
         conn.commit()
         return jsonify({'message': 'Override logged.'}), 201
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ── Run ────────────────────────────────────────────────────
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import os
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
