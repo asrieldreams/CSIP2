@@ -1,3 +1,0 @@
-# bot/.env — update CSIP2_API_BASE to point to new scamwatch backend
-BOT_TOKEN=8753206564:AAHHTjzXOSay8tHT1m2fbifBK3SA3VtvrBY
-CSIP2_API_BASE=http://127.0.0.1:5000
