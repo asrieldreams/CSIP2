@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -591,11 +589,11 @@ async function loadScams() {
 
 async function loadStats() {
   const stats = await fetchStats();
-  if (!stats) return;
-  animateNum('stat-total', stats.total);
-  animateNum('stat-today', stats.today);
-  animateNum('stat-high', stats.high_severity);
-  animateNum('stat-verified', stats.verified);
+  if (!stats || stats.error) return;
+  animateNum('stat-total',    Number(stats.total)         || 0);
+  animateNum('stat-today',    Number(stats.today)         || 0);
+  animateNum('stat-high',     Number(stats.high_severity) || 0);
+  animateNum('stat-verified', Number(stats.verified)      || 0);
 }
 
 function animateNum(id, target) {

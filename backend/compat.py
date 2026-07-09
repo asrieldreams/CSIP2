@@ -454,8 +454,12 @@ def api_admin_stats():
             today = datetime.utcnow().date()
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE DATE(submitted_at) = %s", (today,))
             today_count = cursor.fetchone()['c']
-            cursor.execute("SELECT COALESCE(SUM(amount_lost), 0) as s FROM reports WHERE status='approved' AND amount_lost IS NOT NULL")
-            total_lost = float(cursor.fetchone()['s'])
+            try:
+                cursor.execute("SELECT COALESCE(SUM(amount_lost), 0) as s FROM reports WHERE status='approved' AND amount_lost IS NOT NULL")
+                row = cursor.fetchone()
+                total_lost = float(row['s']) if row and row['s'] is not None else 0
+            except Exception:
+                total_lost = 0
 
         return jsonify({
             'pending':     pending,

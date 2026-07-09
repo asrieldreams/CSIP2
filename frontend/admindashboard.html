@@ -1125,9 +1125,12 @@ function showPage(name, btn) {
 async function loadDashboard() {
     const res  = await apiFetch('/admin/stats');
     const data = await res.json();
+    console.log('Stats data:', data);
+    if (data.error) return;
     document.getElementById('dash-total').textContent   = data.total?.toLocaleString()    || '—';
     document.getElementById('dash-pending').textContent = data.pending?.toLocaleString()  || '—';
-    document.getElementById('stat-today').textContent   = data.today?.toLocaleString()    || '—';
+    const statToday = document.getElementById('stat-today');
+    if (statToday) statToday.textContent = data.today?.toLocaleString() || '—';
     document.getElementById('pending-badge').textContent = data.pending || 0;
     document.getElementById('flagged-badge').textContent = data.flagged || 0;
     loadPendingQueue();
@@ -1166,13 +1169,13 @@ async function loadActivityFeed() {
         <div class="activity-item">
             <div class="activity-dot" style="background:${actionColors[l.action]||'var(--ink-muted)'}"></div>
             <div class="activity-text"><strong>${l.admin}</strong> ${l.action.toLowerCase()} <strong>${l.target}</strong></div>
-            <div class="activity-time">${l.ts.split(' ')[1]}</div>
+            <div class=\"activity-time\">${(l.ts||'').split(' ')[1]||''}</div>
         </div>`).join('');
 }
 
 // ── SCAM REPORTS TABLE ────────────────────────────────────────────────────
 async function loadReports() {
-    const res  = await apiFetch(`/admin/reports?status=${filterStatus}&type=${filterType}&severity=${filterSeverity}&search=${filterSearch}&sort=${state?.sort||'date_desc'}`);
+    const res  = await apiFetch(`/admin/reports?status=${filterStatus}&type=${filterType}&severity=${filterSeverity}&search=${filterSearch}&sort=date_desc`);
     const data = await res.json();
     reportsData = data.data || [];
     renderReportsTable();
