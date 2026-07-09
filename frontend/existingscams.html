@@ -579,19 +579,6 @@ function renderPagination() {
 
 // LOAD
 async function loadScams() {
-  // Retry up to 3 times if API fails
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await _loadScamsOnce();
-    } catch(e) {
-      if (attempt < 2) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-      }
-    }
-  }
-}
-
-async function _loadScamsOnce() {
   if (state.loading) return;
   state.loading = true;
   renderSkeletons();
@@ -606,8 +593,7 @@ async function _loadScamsOnce() {
   container.innerHTML = state.scams.map((s,i) => renderCard(s,i)).join('');
   document.getElementById('results-count').textContent = `${result.total.toLocaleString()} result${result.total!==1?'s':''}`;
   renderPagination();
-}}
-
+}
 
 async function loadStats() {
   let stats = await fetchStats();
