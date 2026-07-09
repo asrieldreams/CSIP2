@@ -72,14 +72,30 @@ def require_token(f):
 def report_to_scam(r):
     """Convert a reports row to scamwatch scam format."""
     ind_type  = r.get('indicator_type', 'url')
-    indicator = r.get('indicator', '')
+    indicator = r.get('indicator', '') or ''
     list_type = r.get('list_type')
-    scam_raw  = r.get('scam_type', 'Others')
+    scam_raw  = r.get('scam_type', 'Others') or 'Others'
     submitted = r.get('submitted_at')
     db_status = r.get('status', 'pending')
 
     # Use stored severity or derive from list_type
     severity = r.get('severity') or ('high' if list_type == 'blacklist' else 'medium')
+
+    # Safe conversions for types that can't be JSON serialized
+    try:
+        amount = float(r['amount_lost']) if r.get('amount_lost') is not None else None
+    except (TypeError, ValueError):
+        amount = None
+
+    try:
+        inc_date = str(r['incident_date']) if r.get('incident_date') else None
+    except Exception:
+        inc_date = None
+
+    try:
+        created = str(submitted) if submitted else datetime.utcnow().isoformat()
+    except Exception:
+        created = datetime.utcnow().isoformat()
 
     return {
         'id':             r['id'],
@@ -87,17 +103,17 @@ def report_to_scam(r):
         'title':          f"{scam_raw}: {indicator[:60]}",
         'description':    r.get('description') or f"Reported via {r.get('source','website')}",
         'type':           TO_API_TYPE.get(scam_raw, 'other'),
-        'severity':       severity,
+        'severity':       severity or 'medium',
         'status':         'verified' if db_status == 'approved' else
                           'removed'  if db_status == 'rejected' else 'pending',
         'platform':       r.get('platform') or r.get('source', 'website'),
         'url':            indicator if ind_type == 'url'   else None,
         'phone_number':   indicator if ind_type == 'phone' else None,
-        'amount_lost':    float(r['amount_lost']) if r.get('amount_lost') else None,
-        'incident_date':  str(r['incident_date']) if r.get('incident_date') else None,
+        'amount_lost':    amount,
+        'incident_date':  inc_date,
         'report_count':   1,
-        'created_at':     str(submitted) if submitted else datetime.utcnow().isoformat(),
-        'updated_at':     str(submitted) if submitted else datetime.utcnow().isoformat(),
+        'created_at':     created,
+        'updated_at':     created,
     }
 
 
@@ -228,10 +244,14 @@ def api_scams_stats():
         with conn.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved'")
             total = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND (severity='high' OR list_type='blacklist')")
+
+            # Use list_type for high severity (works even without severity column)
+            cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND list_type = 'blacklist'")
             high = cursor.fetchone()['c']
+
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved'")
             verified = cursor.fetchone()['c']
+
             today = datetime.utcnow().date()
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE DATE(submitted_at) = %s", (today,))
             today_count = cursor.fetchone()['c']
@@ -244,7 +264,11 @@ def api_scams_stats():
         }), 200
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Return zeros instead of error so frontend doesn't break
+        return jsonify({
+            'total': 0, 'verified': 0,
+            'high_severity': 0, 'today': 0
+        }), 200
 
 
 @compat_bp.route('/api/scams/<int:scam_id>', methods=['GET'])
@@ -454,12 +478,8 @@ def api_admin_stats():
             today = datetime.utcnow().date()
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE DATE(submitted_at) = %s", (today,))
             today_count = cursor.fetchone()['c']
-            try:
-                cursor.execute("SELECT COALESCE(SUM(amount_lost), 0) as s FROM reports WHERE status='approved' AND amount_lost IS NOT NULL")
-                row = cursor.fetchone()
-                total_lost = float(row['s']) if row and row['s'] is not None else 0
-            except Exception:
-                total_lost = 0
+            cursor.execute("SELECT COALESCE(SUM(amount_lost), 0) as s FROM reports WHERE status='approved' AND amount_lost IS NOT NULL")
+            total_lost = float(cursor.fetchone()['s'])
 
         return jsonify({
             'pending':     pending,

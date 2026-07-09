@@ -428,12 +428,20 @@ async function fetchScams() {
 
 // ── REPLACE fetchStats() ──────────────────────────────────────────────────
 async function fetchStats() {
-    try {
-        const res = await apiFetch('/scams/stats');
-        return await res.json();
-    } catch (e) {
-        return null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timeout    = setTimeout(() => controller.abort(), 8000);
+            const res  = await apiFetch('/scams/stats', { signal: controller.signal });
+            clearTimeout(timeout);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (data && !data.error) return data;
+        } catch (e) {
+            if (attempt < 2) await new Promise(r => setTimeout(r, 1500));
+        }
     }
+    return { total: 0, today: 0, high_severity: 0, verified: 0 };
 }
 
 // ── REPLACE fetchScamById() ───────────────────────────────────────────────
@@ -571,6 +579,19 @@ function renderPagination() {
 
 // LOAD
 async function loadScams() {
+  // Retry up to 3 times if API fails
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await _loadScamsOnce();
+    } catch(e) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+  }
+}
+
+async function _loadScamsOnce() {
   if (state.loading) return;
   state.loading = true;
   renderSkeletons();
@@ -585,15 +606,23 @@ async function loadScams() {
   container.innerHTML = state.scams.map((s,i) => renderCard(s,i)).join('');
   document.getElementById('results-count').textContent = `${result.total.toLocaleString()} result${result.total!==1?'s':''}`;
   renderPagination();
-}
+}}
+
 
 async function loadStats() {
-  const stats = await fetchStats();
-  if (!stats || stats.error) return;
-  animateNum('stat-total',    Number(stats.total)         || 0);
-  animateNum('stat-today',    Number(stats.today)         || 0);
-  animateNum('stat-high',     Number(stats.high_severity) || 0);
-  animateNum('stat-verified', Number(stats.verified)      || 0);
+  let stats = await fetchStats();
+
+  // Retry once if failed
+  if (!stats || stats.error) {
+    await new Promise(r => setTimeout(r, 1000));
+    stats = await fetchStats();
+  }
+
+  // Use 0 as fallback so stats always show something
+  animateNum('stat-total',    Number(stats?.total)         || 0);
+  animateNum('stat-today',    Number(stats?.today)         || 0);
+  animateNum('stat-high',     Number(stats?.high_severity) || 0);
+  animateNum('stat-verified', Number(stats?.verified)      || 0);
 }
 
 function animateNum(id, target) {
