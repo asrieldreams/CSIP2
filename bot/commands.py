@@ -97,12 +97,14 @@ def format_check_result(indicator: str, result: dict) -> str:
     description = result.get('description', '')
 
     if status == 'blacklist':
+        count = result.get('report_count', 1)
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
             f"🔗 `{indicator}`\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
-            f"📝 *Details:* {description if description else 'No details available'}\n\n"
+            f"📝 *Details:* {description if description else 'No details available'}\n"
+            f"👥 *Reported by:* {count} {'person' if count == 1 else 'people'}\n\n"
             f"⛔ *DO NOT* visit this site or call this number\n"
             f"🚔 Report to SPF at *999* or *scamalert.sg*"
         )

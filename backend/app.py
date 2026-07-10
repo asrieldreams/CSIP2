@@ -175,7 +175,8 @@ def check_indicator():
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT id, list_type, scam_type, description
+                SELECT id, list_type, scam_type, description,
+                       COALESCE(report_count, 1) as report_count
                 FROM reports
                 WHERE indicator = %s AND status = 'approved'
                 ORDER BY submitted_at DESC LIMIT 1
@@ -199,11 +200,13 @@ def check_indicator():
             return jsonify({'status': 'blacklist', 'report_id': row['id'],
                             'indicator': indicator, 'scam_type': row['scam_type'],
                             'description': row['description'],
+                            'report_count': row.get('report_count', 1),
                             'message': 'WARNING: Confirmed scam. Do not proceed.'}), 200
         elif row['list_type'] == 'whitelist':
             return jsonify({'status': 'whitelist', 'report_id': row['id'],
                             'indicator': indicator, 'scam_type': row['scam_type'],
                             'description': row['description'],
+                            'report_count': row.get('report_count', 1),
                             'message': 'CAUTION: Flagged. Proceed with care.'}), 200
         else:
             return jsonify({'status': 'flagged', 'indicator': indicator,
