@@ -132,9 +132,28 @@ async def scan_qr_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 def extract_indicators(text: str) -> dict:
-    url_pattern   = re.compile(r'(https?://[^\s\)\]\>\"\']+)')
+    # Match http/https URLs AND common patterns without protocol
+    url_pattern = re.compile(
+        r'('
+        r'https?://[^\s\)\]\>\"\'<]+'           # http:// or https://
+        r'|www\.[^\s\)\]\>\"\'<]+'              # www.domain.com
+        r'|bit\.ly/[^\s\)\]\>\"\'<]+'           # bit.ly shortlinks
+        r'|t\.me/[^\s\)\]\>\"\'<]+'             # Telegram links
+        r'|wa\.me/[^\s\)\]\>\"\'<]+'            # WhatsApp links
+        r'|tinyurl\.com/[^\s\)\]\>\"\'<]+'      # tinyurl
+        r'|goo\.gl/[^\s\)\]\>\"\'<]+'           # goo.gl
+        r')'
+    )
     phone_pattern = re.compile(r'(\+?65[\s\-]?\d{4}[\s\-]?\d{4}|\+?\d{8,15})')
-    urls   = list(set(url_pattern.findall(text)))
+
+    raw_urls = url_pattern.findall(text)
+    # Normalize — add http:// if missing
+    urls = []
+    for u in set(raw_urls):
+        if not u.startswith('http'):
+            u = 'http://' + u
+        urls.append(u)
+
     phones = list(set([
         re.sub(r'[\s\-]', '', p)
         for p in phone_pattern.findall(text)
@@ -551,6 +570,181 @@ async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYP
 #  BOT SETUP
 # ============================================================
 
+
+# ============================================================
+#  FORWARDED MESSAGE AUTO-REPORT
+# ============================================================
+
+async def handle_forwarded_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Detects forwarded messages, extracts indicators,
+    and offers a one-tap report or check option.
+    """
+    msg = update.message
+
+    # Only trigger on forwarded messages (new API uses forward_origin)
+    is_forwarded = (
+        getattr(msg, 'forward_origin', None) is not None or
+        getattr(msg, 'forward_from', None) is not None or
+        getattr(msg, 'forward_from_chat', None) is not None or
+        getattr(msg, 'forward_sender_name', None) is not None or
+        getattr(msg, 'forward_date', None) is not None
+    )
+    if not is_forwarded:
+        return
+
+    text = msg.text or msg.caption or ''
+    if not text:
+        await update.message.reply_text(
+            f"📨 *Forwarded message detected!*\n{DIVIDER}\n"
+            f"No text found to scan.\n"
+            f"If there\'s a link in an image, try /check with the URL directly.",
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+        return
+
+    # Extract indicators from the forwarded text
+    found = extract_indicators(text)
+    all_indicators = [u for u in found['urls']] + [p for p in found['phones']]
+
+    if not all_indicators:
+        # No indicators found — show the text and ask to report manually
+        preview = text[:200] + ('...' if len(text) > 200 else '')
+        await update.message.reply_text(
+            f"📨 *Forwarded message detected!*\n{DIVIDER}\n\n"
+            f"No URLs or phone numbers found.\n\n"
+            f"📝 Message preview:\n_{preview}_\n\n"
+            f"💡 Use /report to report this as a scam message.",
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+        return
+
+    # Store extracted indicators in context for the callback
+    context.user_data['fwd_indicators'] = all_indicators
+    context.user_data['fwd_text']       = text
+
+    # Show what was found
+    indicator_lines = []
+    for ind in all_indicators[:3]:  # show max 3
+        ind_type = '🔗' if ind.startswith('http') else '📞'
+        indicator_lines.append(f"{ind_type} `{ind}`")
+
+    more = f"\n_...and {len(all_indicators)-3} more_" if len(all_indicators) > 3 else ''
+
+    keyboard = [[
+        InlineKeyboardButton("🚨 Report This",  callback_data='fwd:report'),
+        InlineKeyboardButton("🔍 Check First",  callback_data='fwd:check'),
+    ],[
+        InlineKeyboardButton("❌ Dismiss",       callback_data='fwd:dismiss'),
+    ]]
+
+    # Get sender name (compatible with old and new PTB API)
+    sender = ''
+    try:
+        forward_origin = getattr(msg, 'forward_origin', None)
+        if forward_origin:
+            if hasattr(forward_origin, 'sender_user') and forward_origin.sender_user:
+                sender = f" from *{forward_origin.sender_user.first_name}*"
+            elif hasattr(forward_origin, 'chat') and forward_origin.chat:
+                sender = f" from *{forward_origin.chat.title}*"
+            elif hasattr(forward_origin, 'sender_user_name') and forward_origin.sender_user_name:
+                sender = f" from *{forward_origin.sender_user_name}*"
+        elif getattr(msg, 'forward_from', None):
+            sender = f" from *{msg.forward_from.first_name}*"
+        elif getattr(msg, 'forward_from_chat', None):
+            sender = f" from *{msg.forward_from_chat.title}*"
+        elif getattr(msg, 'forward_sender_name', None):
+            sender = f" from *{msg.forward_sender_name}*"
+    except Exception:
+        pass
+
+    await update.message.reply_text(
+        f"📨 *Forwarded Message Detected*{sender}\n{DIVIDER}\n\n"
+        f"Found *{len(all_indicators)}* indicator{'s' if len(all_indicators) > 1 else ''}:\n"
+        + "\n".join(indicator_lines) + more +
+        f"\n\n❓ What would you like to do?",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def handle_forwarded_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the Report/Check/Dismiss buttons from forwarded message prompt."""
+    query = update.callback_query
+    await query.answer()
+
+    action      = query.data.split(':')[1]
+    indicators  = context.user_data.get('fwd_indicators', [])
+    fwd_text    = context.user_data.get('fwd_text', '')
+
+    if action == 'dismiss':
+        await query.edit_message_text(
+            f"❌ *Dismissed*\n{DIVIDER}\n"
+            f"No action taken. Stay vigilant! 🛡️",
+            parse_mode='Markdown'
+        )
+        context.user_data.pop('fwd_indicators', None)
+        context.user_data.pop('fwd_text', None)
+        return
+
+    if action == 'check':
+        await query.edit_message_text(
+            f"🔍 *Checking indicators...*\n{DIVIDER}",
+            parse_mode='Markdown'
+        )
+        results = []
+        for indicator in indicators[:3]:
+            result = check_single_indicator_sync(indicator)
+            results.append(format_check_result(indicator, result))
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="\n\n".join(results),
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+        context.user_data.pop('fwd_indicators', None)
+        return
+
+    if action == 'report':
+        # Pre-fill the first indicator and jump straight to scam type selection
+        indicator = indicators[0] if indicators else fwd_text[:100]
+        context.user_data['indicator']      = sanitise_text(indicator)
+        context.user_data['indicator_type'] = detect_indicator_type(indicator)
+
+        await query.edit_message_text(
+            f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+            f"📍 *Step 2 of 6* — Select Scam Type\n\n"
+            f"✅ Indicator: `{sanitise_text(indicator)}`\n\n"
+            f"Now tap the scam type below:",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎣 Phishing",        callback_data='type:Phishing'),
+                    InlineKeyboardButton("🛒 E-Commerce Scam", callback_data='type:E-Commerce Scam'),
+                ],
+                [
+                    InlineKeyboardButton("🎭 Impersonation",   callback_data='type:Impersonation'),
+                    InlineKeyboardButton("💕 Love Scam",       callback_data='type:Love Scam'),
+                ],
+                [
+                    InlineKeyboardButton("📈 Investment Scam", callback_data='type:Investment Scam'),
+                    InlineKeyboardButton("💬 SMS Scam",        callback_data='type:SMS Scam'),
+                ],
+                [
+                    InlineKeyboardButton("💼 Job Scam",        callback_data='type:Job Scam'),
+                    InlineKeyboardButton("❓ Others",           callback_data='type:Others'),
+                ],
+            ])
+        )
+        context.user_data.pop('fwd_indicators', None)
+        context.user_data.pop('fwd_text', None)
+        # Return the state so ConversationHandler picks it up
+        return WAITING_FOR_SCAM_TYPE
+
+
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -602,6 +796,15 @@ def main():
             r'^(🔍 Check|📢 Report|📋 Latest|🔎 Search|📊 Status|📖 History|ℹ️ About|❓ Help)$'
         ),
         handle_menu_button
+    ))
+
+    # ── Forwarded message auto-report ────────────────────
+    app.add_handler(MessageHandler(
+        filters.FORWARDED & filters.ChatType.PRIVATE,
+        handle_forwarded_message
+    ))
+    app.add_handler(CallbackQueryHandler(
+        handle_forwarded_callback, pattern='^fwd:'
     ))
 
     # ── QR code scanner ───────────────────────────────────

@@ -79,7 +79,29 @@ DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━"
 
 # ── API Helpers ────────────────────────────────────────────
 
+def normalize_url(indicator: str) -> str:
+    """Add http:// if indicator looks like a URL without protocol."""
+    indicator = indicator.strip()
+    if indicator.startswith('http://') or indicator.startswith('https://'):
+        return indicator
+    # Common shortlink/social patterns
+    url_patterns = [
+        'www.', 'bit.ly/', 't.me/', 'wa.me/', 'tinyurl.com/',
+        'goo.gl/', 'tiny.cc/', 'ow.ly/', 'rb.gy/', 'cutt.ly/'
+    ]
+    for pattern in url_patterns:
+        if indicator.lower().startswith(pattern):
+            return 'http://' + indicator
+    # If it has a TLD-like pattern (has dot, no spaces, not email)
+    if '.' in indicator and ' ' not in indicator and '@' not in indicator:
+        if not any(c in indicator for c in ['(', ')', '?', '!']):
+            return 'http://' + indicator
+    return indicator
+
+
 def check_single_indicator_sync(indicator: str) -> dict:
+    """Calls GET /check. Auto-normalizes URLs without http://."""
+    indicator = normalize_url(indicator)
     try:
         response = requests.get(
             f'{CSIP2_API_BASE}/check',
@@ -312,10 +334,10 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    indicator = ' '.join(context.args).strip()[:500]
+    indicator = normalize_url(' '.join(context.args).strip()[:500])
 
     await update.message.reply_text(
-        f"🔍 Checking...\n`{indicator}`",
+        f"🔍 Checking `{indicator}`...",
         parse_mode='Markdown'
     )
 
