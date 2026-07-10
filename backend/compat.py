@@ -13,6 +13,26 @@ from db import get_connection
 
 compat_bp = Blueprint('compat', __name__)
 
+
+def normalize_url(indicator: str) -> str:
+    """Add http:// prefix if indicator looks like a URL without protocol."""
+    indicator = indicator.strip()
+    if not indicator:
+        return indicator
+    # Already has protocol
+    if indicator.startswith('http://') or indicator.startswith('https://'):
+        return indicator
+    # Common patterns that need http://
+    prefixes = ['www.', 'bit.ly/', 't.me/', 'wa.me/',
+                'tinyurl.com/', 'goo.gl/', 'tiny.cc/']
+    for p in prefixes:
+        if indicator.lower().startswith(p):
+            return 'http://' + indicator
+    # Has a dot, no spaces, not email → likely a domain
+    if '.' in indicator and ' ' not in indicator and '@' not in indicator:
+        return 'http://' + indicator
+    return indicator
+
 # ── In-memory token store ──────────────────────────────────
 _tokens = {}
 
@@ -423,16 +443,21 @@ def api_submit_scam():
 @compat_bp.route('/api/scanner/check', methods=['POST'])
 def api_scanner_check():
     data  = request.get_json(silent=True) or {}
-    value = (data.get('value') or '').strip().lower()
-    if not value:
+    raw_value = (data.get('value') or '').strip()
+    if not raw_value:
         return jsonify({'error': 'Value is required'}), 400
+
+    # Normalize — add http:// if looks like URL without protocol
+    normalized = normalize_url(raw_value)
+    value      = normalized.lower()
 
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
+            # Try exact match first (with normalized URL)
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type,
-                       description, list_type, severity
+                       description, list_type, severity, report_count
                 FROM reports
                 WHERE LOWER(indicator) = %s AND status = 'approved'
                 LIMIT 1
@@ -440,13 +465,26 @@ def api_scanner_check():
             row = cursor.fetchone()
 
             if not row:
+                # Try substring match (catches partial domains)
                 cursor.execute("""
                     SELECT id, indicator_type, indicator, scam_type,
-                           description, list_type, severity
+                           description, list_type, severity, report_count
                     FROM reports
                     WHERE LOWER(indicator) LIKE %s AND status = 'approved'
                     LIMIT 1
                 """, (f'%{value}%',))
+                row = cursor.fetchone()
+
+            if not row and '/' in value:
+                # Try matching just the domain part
+                domain = value.split('/')[2] if value.startswith('http') else value.split('/')[0]
+                cursor.execute("""
+                    SELECT id, indicator_type, indicator, scam_type,
+                           description, list_type, severity, report_count
+                    FROM reports
+                    WHERE LOWER(indicator) LIKE %s AND status = 'approved'
+                    LIMIT 1
+                """, (f'%{domain}%',))
                 row = cursor.fetchone()
 
         if not row:

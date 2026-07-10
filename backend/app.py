@@ -23,10 +23,15 @@ app.register_blueprint(compat_bp)
 
 
 def normalize_indicator(indicator: str) -> str:
-    cleaned = re.sub(r'[\s\-]', '', indicator.strip())
+    indicator = indicator.strip()
+    # Normalize phone numbers
+    cleaned = re.sub(r'[\s\-]', '', indicator)
     if re.match(r'^\+?\d{8,15}$', cleaned):
         return cleaned
-    return indicator.strip()
+    # Normalize URLs — add http:// if missing
+    if not indicator.startswith('http') and '.' in indicator and ' ' not in indicator and '@' not in indicator:
+        indicator = 'http://' + indicator
+    return indicator
 
 
 @app.route('/')
