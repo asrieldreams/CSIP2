@@ -111,7 +111,7 @@ def report_to_scam(r):
         'phone_number':   indicator if ind_type == 'phone' else None,
         'amount_lost':    amount,
         'incident_date':  inc_date,
-        'report_count':   1,
+        'report_count':   r.get('report_count') or 1,
         'created_at':     created,
         'updated_at':     created,
     }
@@ -190,7 +190,7 @@ def api_get_scams():
 
     query  = """SELECT id, indicator_type, indicator, scam_type, description,
                        source, list_type, submitted_at, status,
-                       severity, platform, amount_lost, incident_date
+                       severity, platform, amount_lost, incident_date, report_count
                 FROM reports WHERE status = 'approved'"""
     params = []
 
@@ -279,7 +279,7 @@ def api_get_scam(scam_id):
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type, description,
                        source, list_type, submitted_at, status,
-                       severity, platform, amount_lost, incident_date
+                       severity, platform, amount_lost, incident_date, report_count
                 FROM reports WHERE id = %s
             """, (scam_id,))
             row = cursor.fetchone()
@@ -352,10 +352,27 @@ def api_submit_scam():
             existing = cursor.fetchone()
 
         if existing and existing['status'] in ('approved', 'pending'):
+            # Increment report_count
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET report_count = COALESCE(report_count, 1) + 1 WHERE id = %s",
+                        (existing['id'],)
+                    )
+                conn.commit()
+                # Get updated count
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT report_count FROM reports WHERE id = %s", (existing['id'],))
+                    row = cursor.fetchone()
+                    count = row['report_count'] if row else 1
+            except Exception:
+                count = 1
+
             return jsonify({
                 'report_id': f"SS-{str(existing['id']).zfill(5)}",
                 'duplicate': True,
-                'message':   'Already reported'
+                'report_count': count,
+                'message':   f'Already reported — noted by {count} people now'
             }), 200
 
         # ── Insert with all new fields ─────────────────────
@@ -513,7 +530,7 @@ def api_admin_reports():
 
     query  = """SELECT id, indicator_type, indicator, scam_type, description,
                        source, status, list_type, submitted_at,
-                       severity, platform, amount_lost, incident_date
+                       severity, platform, amount_lost, incident_date, report_count
                 FROM reports WHERE status = %s"""
     params = [db_status]
 

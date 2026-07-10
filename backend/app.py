@@ -64,20 +64,58 @@ def submit_report():
             )
             existing = cursor.fetchone()
 
-        if existing:
-            if existing['status'] == 'approved':
-                return jsonify({'error': 'Already reported and approved.',
-                                'duplicate': True, 'status': 'approved'}), 409
-            elif existing['status'] == 'pending':
-                return jsonify({'error': 'Already reported and pending review.',
-                                'duplicate': True, 'status': 'pending'}), 409
+        if existing and existing['status'] in ('approved', 'pending'):
+            # Increment report count
+            count = 1
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET report_count = COALESCE(report_count, 1) + 1 WHERE id = %s",
+                        (existing['id'],)
+                    )
+                conn.commit()
+                # Fetch updated count
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT report_count FROM reports WHERE id = %s",
+                        (existing['id'],)
+                    )
+                    row = cursor.fetchone()
+                    count = row['report_count'] if row and row.get('report_count') else 1
+            except Exception as e:
+                print(f"[report_count] {e}")
+
+            return jsonify({
+                'message':    f'Thanks! Now reported by {count} people.',
+                'duplicate':  True,
+                'status':     existing['status'],
+                'report_id':  existing['id'],
+                'report_count': count,
+            }), 200
 
         with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO reports (indicator_type, indicator, scam_type, description, source)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (data['indicator_type'], indicator,
-                  data['scam_type'], description, data['source']))
+            try:
+                cursor.execute("""
+                    INSERT INTO reports
+                        (indicator_type, indicator, scam_type, description,
+                         source, severity, platform, report_count)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
+                """, (
+                    data['indicator_type'], indicator,
+                    data['scam_type'], description,
+                    data.get('source', 'website'),
+                    data.get('severity', 'medium'),
+                    data.get('platform', 'website'),
+                ))
+            except Exception:
+                # Fallback without new columns
+                cursor.execute("""
+                    INSERT INTO reports
+                        (indicator_type, indicator, scam_type, description, source)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (data['indicator_type'], indicator,
+                      data['scam_type'], description,
+                      data.get('source', 'website')))
         conn.commit()
         return jsonify({'message': 'Report submitted. Pending admin review.'}), 201
 

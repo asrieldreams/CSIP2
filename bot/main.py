@@ -35,6 +35,8 @@ CSIP2_API_BASE     = os.getenv('CSIP2_API_BASE', 'http://127.0.0.1:5000')
 
 WAITING_FOR_INDICATOR = 'WAITING_FOR_INDICATOR'
 WAITING_FOR_SCAM_TYPE = 'WAITING_FOR_SCAM_TYPE'
+WAITING_FOR_SEVERITY  = 'WAITING_FOR_SEVERITY'
+WAITING_FOR_PLATFORM  = 'WAITING_FOR_PLATFORM'
 WAITING_FOR_DESC      = 'WAITING_FOR_DESC'
 WAITING_FOR_CONFIRM   = 'WAITING_FOR_CONFIRM'
 
@@ -253,7 +255,7 @@ async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📢 *Submit a Scam Report*\n"
         f"{DIVIDER}\n"
-        f"📍 *Step 2 of 4* — Select Scam Type\n\n"
+        f"📍 *Step 2 of 6* — Select Scam Type\n\n"
         f"✅ Indicator saved: `{sanitise_text(indicator)}`\n\n"
         f"Now tap the scam type below:",
         parse_mode='Markdown',
@@ -273,25 +275,113 @@ async def receive_scam_type_callback(update: Update, context: ContextTypes.DEFAU
 
     context.user_data['scam_type'] = scam_type
     await query.edit_message_text(
-        f"📢 *Submit a Scam Report*\n"
-        f"{DIVIDER}\n"
-        f"📍 *Step 2 of 4* — ✅ Done\n\n"
+        f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+        f"📍 *Step 2 of 6* — ✅ Done\n\n"
         f"🏷️ Type selected: *{scam_type}*",
+        parse_mode='Markdown'
+    )
+
+    # Step 3 — Severity
+    keyboard = [[
+        InlineKeyboardButton("⚠️ Low",    callback_data='sev:Low'),
+        InlineKeyboardButton("🚨 Medium", callback_data='sev:Medium'),
+        InlineKeyboardButton("🔴 High",   callback_data='sev:High'),
+    ]]
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+             f"📍 *Step 3 of 6* — How Severe?\n\n"
+             f"Tap to select severity:",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return WAITING_FOR_SEVERITY
+
+
+
+
+async def receive_severity_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Step 4 — User taps a severity button."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    if not data.startswith('sev:'):
+        return WAITING_FOR_SEVERITY
+
+    severity = data[4:]
+    context.user_data['severity'] = severity.lower()
+    sev_emoji = {'Low': '⚠️', 'Medium': '🚨', 'High': '🔴'}.get(severity, '🚨')
+
+    await query.edit_message_text(
+        f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+        f"📍 *Step 3 of 6* — ✅ Done\n\n"
+        f"{sev_emoji} Severity: *{severity}*",
+        parse_mode='Markdown'
+    )
+
+    keyboard = [
+        [
+            InlineKeyboardButton("📱 WhatsApp",      callback_data='plt:WhatsApp'),
+            InlineKeyboardButton("✈️ Telegram",      callback_data='plt:Telegram'),
+        ],
+        [
+            InlineKeyboardButton("📞 SMS / Call",    callback_data='plt:SMS / Call'),
+            InlineKeyboardButton("📧 Email",         callback_data='plt:Email'),
+        ],
+        [
+            InlineKeyboardButton("🌐 Website",       callback_data='plt:Website'),
+            InlineKeyboardButton("📘 Facebook",      callback_data='plt:Facebook'),
+        ],
+        [
+            InlineKeyboardButton("📸 Instagram",     callback_data='plt:Instagram'),
+            InlineKeyboardButton("🛒 Shopee/Lazada", callback_data='plt:Shopee / Lazada'),
+        ],
+        [
+            InlineKeyboardButton("❓ Other",          callback_data='plt:Other'),
+            InlineKeyboardButton("⏭️ Skip",          callback_data='plt:Telegram'),
+        ],
+    ]
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+             f"📍 *Step 4 of 6* — Where Did the Scam Occur?\n\n"
+             f"Tap to select platform:",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return WAITING_FOR_PLATFORM
+
+
+async def receive_platform_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Step 5 — User taps a platform button."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    if not data.startswith('plt:'):
+        return WAITING_FOR_PLATFORM
+
+    platform = data[4:]
+    context.user_data['platform'] = platform
+
+    await query.edit_message_text(
+        f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+        f"📍 *Step 4 of 6* — ✅ Done\n\n"
+        f"📱 Platform: *{platform}*",
         parse_mode='Markdown'
     )
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=f"📢 *Submit a Scam Report*\n"
-             f"{DIVIDER}\n"
-             f"📍 *Step 3 of 4* — Add Description\n\n"
-             f"📝 Optionally describe the scam\n"
-             f"e.g. _'Fake DBS login page'_\n\n"
-             f"Or send /skip to skip this step",
+        text=f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+             f"📍 *Step 5 of 6* — Add Description\n\n"
+             f"📝 Describe what happened\n"
+             f"e.g. _'Received a call claiming to be from SPF'_\n\n"
+             f"Or send /skip to skip",
         parse_mode='Markdown'
     )
     return WAITING_FOR_DESC
-
 
 async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = update.message.text.strip()
@@ -303,6 +393,9 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
     indicator   = context.user_data.get('indicator', '')
     scam_type   = context.user_data.get('scam_type', '')
     description = context.user_data.get('description', '')
+    severity    = context.user_data.get('severity', 'medium')
+    platform    = context.user_data.get('platform', 'Telegram')
+    sev_emoji   = '🔴' if severity == 'high' else '🚨' if severity == 'medium' else '⚠️'
 
     keyboard = [[
         InlineKeyboardButton("✅ Confirm & Submit", callback_data='CONFIRM'),
@@ -312,10 +405,12 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         f"📢 *Submit a Scam Report*\n"
         f"{DIVIDER}\n"
-        f"📍 *Step 4 of 4* — Confirm\n\n"
+        f"📍 *Step 6 of 6* — Confirm\n\n"
         f"📋 *Review your report:*\n\n"
         f"🔗 `{indicator}`\n"
         f"🏷️ {scam_type}\n"
+        f"{sev_emoji} Severity: {severity.capitalize()}\n"
+        f"📱 Platform: {platform}\n"
         f"📝 {description if description else '_No description_'}\n\n"
         f"Is everything correct?",
         parse_mode='Markdown',
@@ -329,6 +424,9 @@ async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     indicator = context.user_data.get('indicator', '')
     scam_type = context.user_data.get('scam_type', '')
+    severity  = context.user_data.get('severity', 'medium')
+    platform  = context.user_data.get('platform', 'Telegram')
+    sev_emoji = '🔴' if severity == 'high' else '🚨' if severity == 'medium' else '⚠️'
 
     keyboard = [[
         InlineKeyboardButton("✅ Confirm & Submit", callback_data='CONFIRM'),
@@ -338,10 +436,12 @@ async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📢 *Submit a Scam Report*\n"
         f"{DIVIDER}\n"
-        f"📍 *Step 4 of 4* — Confirm\n\n"
+        f"📍 *Step 6 of 6* — Confirm\n\n"
         f"📋 *Review your report:*\n\n"
         f"🔗 `{indicator}`\n"
         f"🏷️ {scam_type}\n"
+        f"{sev_emoji} Severity: {severity.capitalize()}\n"
+        f"📱 Platform: {platform}\n"
         f"📝 _No description_\n\n"
         f"Is everything correct?",
         parse_mode='Markdown',
@@ -382,6 +482,8 @@ async def receive_confirmation(update: Update, context: ContextTypes.DEFAULT_TYP
     user_history[user_id].append({
         'indicator':    indicator,
         'scam_type':    scam_type,
+        'severity':     context.user_data.get('severity', 'medium').capitalize(),
+        'platform':     context.user_data.get('platform', 'Telegram'),
         'submitted_at': datetime.now().strftime('%d %b %Y %H:%M')
     })
 
@@ -406,6 +508,12 @@ def main():
             ],
             WAITING_FOR_SCAM_TYPE: [
                 CallbackQueryHandler(receive_scam_type_callback)
+            ],
+            WAITING_FOR_SEVERITY: [
+                CallbackQueryHandler(receive_severity_callback, pattern='^sev:')
+            ],
+            WAITING_FOR_PLATFORM: [
+                CallbackQueryHandler(receive_platform_callback, pattern='^plt:')
             ],
             WAITING_FOR_DESC: [
                 CommandHandler('skip', skip_description),

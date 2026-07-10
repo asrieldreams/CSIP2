@@ -155,7 +155,9 @@ async def submit_report_to_new_api(update, context):
         'indicator':      indicator,
         'scam_type':      scam_type,
         'description':    desc,
-        'source':         'telegram'
+        'source':         'telegram',
+        'severity':       context.user_data.get('severity', 'medium'),
+        'platform':       context.user_data.get('platform', 'Telegram'),
     }
 
     try:
@@ -180,15 +182,17 @@ async def submit_report_to_new_api(update, context):
                 parse_mode='Markdown',
                 reply_markup=get_main_menu()
             )
-        elif response.status_code == 409:
+        elif data.get('duplicate'):
             dup_status  = data.get('status', 'pending')
-            status_text = '✅ already approved' if dup_status == 'approved' \
-                          else '⏳ pending admin review'
+            count       = int(data.get('report_count', 1))
+            status_text = '✅ verified scam' if dup_status == 'approved' \
+                          else '⏳ under review'
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=f"⚠️ *Already Reported*\n"
                      f"{DIVIDER}\n"
-                     f"📌 `{indicator}` is {status_text}\n\n"
+                     f"📌 `{indicator}` is {status_text}\n"
+                     f"👥 Now reported by *{count}* {'person' if count==1 else 'people'}\n\n"
                      f"💡 Use 🔍 *Check* to see its current status",
                 parse_mode='Markdown',
                 reply_markup=get_main_menu()
@@ -523,7 +527,7 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📢 *Submit a Scam Report*\n"
         f"{DIVIDER}\n"
-        f"📍 *Step 1 of 4* — Enter Indicator\n\n"
+        f"📍 *Step 1 of 6* — Enter Indicator\n\n"
         f"Send the suspicious indicator:\n\n"
         f"🔗 URL: `http://scam-site.com`\n"
         f"📞 Phone: `+65 9123 4567`\n"
