@@ -670,14 +670,13 @@ async def handle_forwarded_message(update: Update, context: ContextTypes.DEFAULT
     )
 
 
-async def handle_forwarded_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles the Report/Check/Dismiss buttons from forwarded message prompt."""
+async def handle_forwarded_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles Check and Dismiss buttons from forwarded message (standalone, not in ConversationHandler)."""
     query = update.callback_query
     await query.answer()
 
-    action      = query.data.split(':')[1]
-    indicators  = context.user_data.get('fwd_indicators', [])
-    fwd_text    = context.user_data.get('fwd_text', '')
+    action     = query.data.split(':')[1]
+    indicators = context.user_data.get('fwd_indicators', [])
 
     if action == 'dismiss':
         await query.edit_message_text(
@@ -687,9 +686,8 @@ async def handle_forwarded_callback(update: Update, context: ContextTypes.DEFAUL
         )
         context.user_data.pop('fwd_indicators', None)
         context.user_data.pop('fwd_text', None)
-        return
 
-    if action == 'check':
+    elif action == 'check':
         await query.edit_message_text(
             f"🔍 *Checking indicators...*\n{DIVIDER}",
             parse_mode='Markdown'
@@ -706,43 +704,51 @@ async def handle_forwarded_callback(update: Update, context: ContextTypes.DEFAUL
             reply_markup=get_main_menu()
         )
         context.user_data.pop('fwd_indicators', None)
-        return
 
-    if action == 'report':
-        # Pre-fill the first indicator and jump straight to scam type selection
-        indicator = indicators[0] if indicators else fwd_text[:100]
-        context.user_data['indicator']      = sanitise_text(indicator)
-        context.user_data['indicator_type'] = detect_indicator_type(indicator)
 
-        await query.edit_message_text(
-            f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
-            f"📍 *Step 2 of 6* — Select Scam Type\n\n"
-            f"✅ Indicator: `{sanitise_text(indicator)}`\n\n"
-            f"Now tap the scam type below:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("🎣 Phishing",        callback_data='type:Phishing'),
-                    InlineKeyboardButton("🛒 E-Commerce Scam", callback_data='type:E-Commerce Scam'),
-                ],
-                [
-                    InlineKeyboardButton("🎭 Impersonation",   callback_data='type:Impersonation'),
-                    InlineKeyboardButton("💕 Love Scam",       callback_data='type:Love Scam'),
-                ],
-                [
-                    InlineKeyboardButton("📈 Investment Scam", callback_data='type:Investment Scam'),
-                    InlineKeyboardButton("💬 SMS Scam",        callback_data='type:SMS Scam'),
-                ],
-                [
-                    InlineKeyboardButton("💼 Job Scam",        callback_data='type:Job Scam'),
-                    InlineKeyboardButton("❓ Others",           callback_data='type:Others'),
-                ],
-            ])
-        )
-        context.user_data.pop('fwd_indicators', None)
-        context.user_data.pop('fwd_text', None)
-        # Return the state so ConversationHandler picks it up
-        return WAITING_FOR_SCAM_TYPE
+async def handle_forwarded_report_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Entry point into ConversationHandler from forwarded message.
+    User tapped 🚨 Report This — pre-fill indicator and go to Step 2.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    indicators = context.user_data.get('fwd_indicators', [])
+    fwd_text   = context.user_data.get('fwd_text', '')
+    indicator  = indicators[0] if indicators else fwd_text[:100]
+
+    context.user_data['indicator']      = sanitise_text(indicator)
+    context.user_data['indicator_type'] = detect_indicator_type(indicator)
+    context.user_data.pop('fwd_indicators', None)
+    context.user_data.pop('fwd_text', None)
+
+    await query.edit_message_text(
+        f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+        f"📍 *Step 2 of 6* — Select Scam Type\n\n"
+        f"✅ Indicator saved: `{sanitise_text(indicator)}`\n\n"
+        f"Tap the scam type below:",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎣 Phishing",        callback_data='type:Phishing'),
+                InlineKeyboardButton("🛒 E-Commerce Scam", callback_data='type:E-Commerce Scam'),
+            ],
+            [
+                InlineKeyboardButton("🎭 Impersonation",   callback_data='type:Impersonation'),
+                InlineKeyboardButton("💕 Love Scam",       callback_data='type:Love Scam'),
+            ],
+            [
+                InlineKeyboardButton("📈 Investment Scam", callback_data='type:Investment Scam'),
+                InlineKeyboardButton("💬 SMS Scam",        callback_data='type:SMS Scam'),
+            ],
+            [
+                InlineKeyboardButton("💼 Job Scam",        callback_data='type:Job Scam'),
+                InlineKeyboardButton("❓ Others",           callback_data='type:Others'),
+            ],
+        ])
+    )
+    return WAITING_FOR_SCAM_TYPE
 
 
 def main():
@@ -751,7 +757,9 @@ def main():
     report_conv = ConversationHandler(
         entry_points=[
             CommandHandler('report', report_command),
-            MessageHandler(filters.Regex(r'^📢 Report$'), report_command)
+            MessageHandler(filters.Regex(r'^📢 Report$'), report_command),
+            # ← Forwarded message "Report This" button enters here
+            CallbackQueryHandler(handle_forwarded_report_start, pattern='^fwd:report$'),
         ],
         states={
             WAITING_FOR_INDICATOR: [
@@ -803,9 +811,11 @@ def main():
         filters.FORWARDED & filters.ChatType.PRIVATE,
         handle_forwarded_message
     ))
+    # fwd:check and fwd:dismiss are standalone (outside ConversationHandler)
     app.add_handler(CallbackQueryHandler(
-        handle_forwarded_callback, pattern='^fwd:'
+        handle_forwarded_action, pattern='^fwd:(check|dismiss)$'
     ))
+    # fwd:report is handled inside ConversationHandler as entry_point (registered above)
 
     # ── QR code scanner ───────────────────────────────────
     app.add_handler(MessageHandler(
