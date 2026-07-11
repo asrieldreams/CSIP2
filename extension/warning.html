@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚠️ Scam Warning — CSIP2 ScamWatch</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .card {
+    background: #161b22;
+    border: 1px solid rgba(248,81,73,0.4);
+    border-radius: 16px;
+    padding: 2.5rem 3rem;
+    max-width: 600px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(248,81,73,0.15);
+  }
+  .shield-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #f85149;
+    margin-bottom: 0.5rem;
+  }
+  .subtitle {
+    font-size: 1rem;
+    color: #8b949e;
+    margin-bottom: 2rem;
+  }
+  .url-box {
+    background: rgba(248,81,73,0.1);
+    border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 8px;
+    padding: 0.85rem 1.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.88rem;
+    color: #f85149;
+    word-break: break-all;
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    text-align: left;
+  }
+  .info-item {
+    background: #1c2128;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  .info-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6e7681;
+    margin-bottom: 3px;
+  }
+  .info-val {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  .warning-box {
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 0.88rem;
+    color: #8b949e;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    text-align: left;
+  }
+  .warning-box strong { color: #f85149; }
+  .btn-row {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-back {
+    background: #3fb950;
+    color: #fff;
+  }
+  .btn-back:hover { background: #2ea043; transform: translateY(-1px); }
+  .btn-proceed {
+    background: transparent;
+    color: #f85149;
+    border: 1px solid rgba(248,81,73,0.4);
+  }
+  .btn-proceed:hover { background: rgba(248,81,73,0.1); }
+  .btn-report {
+    background: #2f81f7;
+    color: #fff;
+  }
+  .btn-report:hover { background: #1a6fd4; transform: translateY(-1px); }
+  .powered {
+    margin-top: 2rem;
+    font-size: 0.75rem;
+    color: #484f58;
+  }
+  .powered span { color: #2f81f7; }
+  .count-badge {
+    display: inline-block;
+    background: rgba(248,81,73,0.15);
+    color: #f85149;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="shield-icon">🛡️</div>
+  <h1>SCAM DETECTED</h1>
+  <p class="subtitle">This website has been flagged as a confirmed scam</p>
+
+  <div class="count-badge" id="count-badge">🚨 Threats blocked: 1</div>
+
+  <div class="url-box" id="url-box">Loading...</div>
+
+  <div class="info-grid">
+    <div class="info-item">
+      <div class="info-label">Scam Type</div>
+      <div class="info-val" id="scam-type">—</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Database Status</div>
+      <div class="info-val" style="color:#f85149">⛔ BLACKLISTED</div>
+    </div>
+    <div class="info-item" style="grid-column:span 2">
+      <div class="info-label">Details</div>
+      <div class="info-val" id="scam-desc" style="font-weight:400;font-size:0.85rem;color:#8b949e">—</div>
+    </div>
+  </div>
+
+  <div class="warning-box">
+    ⚠️ <strong>Do NOT</strong> enter any personal information, passwords, or payment details on this site.
+    If you have already entered information, contact your bank immediately and report to
+    <strong>ScamAlert.sg</strong> or call the Anti-Scam Helpline at <strong>1800-722-6688</strong>.
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-back" onclick="goBack()">
+      ← Take Me Back to Safety
+    </button>
+    <button class="btn btn-report" onclick="reportSite()">
+      📢 Report This Site
+    </button>
+    <button class="btn btn-proceed" onclick="proceedAnyway()">
+      Proceed Anyway (Unsafe)
+    </button>
+  </div>
+
+  <div class="powered">Protected by <span>CSIP2 ScamWatch</span> • Community Scam Intelligence</div>
+</div>
+
+<script>
+// Parse URL parameters
+const params  = new URLSearchParams(location.search);
+let data = {};
+try {
+    data = JSON.parse(decodeURIComponent(params.get('d') || '{}'));
+} catch(e) {}
+
+// Populate page
+document.getElementById('url-box').textContent     = data.url      || 'Unknown URL';
+document.getElementById('scam-type').textContent   = data.scam_type || 'Unknown';
+document.getElementById('scam-desc').textContent   = data.desc      || 'Confirmed scam in CSIP2 database';
+document.getElementById('count-badge').textContent = `🚨 Threats blocked this session: ${data.count || 1}`;
+
+// Store the blocked URL so user can go back
+const blockedUrl  = data.url || '';
+const previousUrl = document.referrer || '';
+
+function goBack() {
+    if (history.length > 1) {
+        history.go(-2); // skip warning page
+    } else {
+        window.location.href = 'https://www.scamalert.sg/';
+    }
+}
+
+function proceedAnyway() {
+    if (!blockedUrl) return;
+    const confirmed = confirm(
+        '⚠️ WARNING: This site is confirmed as a SCAM.\n\n' +
+        'Proceeding is at your own risk. Do NOT enter any personal or financial information.\n\n' +
+        'Are you sure you want to continue?'
+    );
+    if (confirmed) window.location.href = blockedUrl;
+}
+
+function reportSite() {
+    const reportUrl = `http://localhost:5000/report`;
+    fetch(reportUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            indicator_type: 'url',
+            indicator:      blockedUrl,
+            scam_type:      data.scam_type || 'Others',
+            description:    'Reported via CSIP2 ScamWatch Extension warning page',
+            source:         'extension'
+        })
+    })
+    .then(r => r.json())
+    .then(() => alert('✅ Thank you! Report submitted to CSIP2 database.'))
+    .catch(() => alert('Could not reach backend. Please try again.'));
+}
+</script>
+</body>
+</html>
