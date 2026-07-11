@@ -31,6 +31,9 @@ def normalize_indicator(indicator: str) -> str:
     # Normalize URLs — add http:// if missing
     if not indicator.startswith('http') and '.' in indicator and ' ' not in indicator and '@' not in indicator:
         indicator = 'http://' + indicator
+    # Strip trailing slash from root URLs (http://domain.com/ → http://domain.com)
+    if indicator.endswith('/') and indicator.count('/') == 3:
+        indicator = indicator.rstrip('/')
     return indicator
 
 
@@ -179,13 +182,46 @@ def check_indicator():
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute("""
+            # Build all variants to check:
+            # - http vs https
+            # - www. vs no www.
+            # - trailing slash vs no trailing slash
+            def url_variants(u):
+                u = u.rstrip('/')
+                # Extract protocol and rest
+                if u.startswith('https://'):
+                    proto, rest = 'https://', u[8:]
+                elif u.startswith('http://'):
+                    proto, rest = 'http://', u[7:]
+                else:
+                    return [u]
+
+                # Strip or add www.
+                if rest.startswith('www.'):
+                    rest_no_www = rest[4:]
+                    rest_www    = rest
+                else:
+                    rest_no_www = rest
+                    rest_www    = 'www.' + rest
+
+                variants = set()
+                for p in ('http://', 'https://'):
+                    for r in (rest_no_www, rest_www):
+                        base = p + r
+                        variants.add(base)
+                        variants.add(base + '/')
+                return list(variants)
+
+            variants = url_variants(normalized)
+            placeholders = ','.join(['%s'] * len(variants))
+            cursor.execute(f"""
                 SELECT id, list_type, scam_type, description,
                        COALESCE(report_count, 1) as report_count
                 FROM reports
-                WHERE indicator = %s AND status = 'approved'
+                WHERE indicator IN ({placeholders})
+                  AND status = 'approved'
                 ORDER BY submitted_at DESC LIMIT 1
-            """, (normalized,))
+            """, variants)
             row = cursor.fetchone()
 
         if not row:

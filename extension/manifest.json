@@ -8,7 +8,14 @@
     "activeTab",
     "tabs",
     "storage",
-    "scripting"
+    "scripting",
+    "webNavigation"
+  ],
+
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "http://*/*",
+    "https://*/*"
   ],
 
   "background": {

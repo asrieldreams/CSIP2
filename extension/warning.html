@@ -36,17 +36,8 @@
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
   }
-  h1 {
-    font-size: 1.8rem;
-    font-weight: 800;
-    color: #f85149;
-    margin-bottom: 0.5rem;
-  }
-  .subtitle {
-    font-size: 1rem;
-    color: #8b949e;
-    margin-bottom: 2rem;
-  }
+  h1 { font-size: 1.8rem; font-weight: 800; color: #f85149; margin-bottom: 0.5rem; }
+  .subtitle { font-size: 1rem; color: #8b949e; margin-bottom: 2rem; }
   .url-box {
     background: rgba(248,81,73,0.1);
     border: 1px solid rgba(248,81,73,0.3);
@@ -63,7 +54,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     text-align: left;
   }
   .info-item {
@@ -79,11 +70,7 @@
     color: #6e7681;
     margin-bottom: 3px;
   }
-  .info-val {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #e6edf3;
-  }
+  .info-val { font-size: 0.9rem; font-weight: 600; color: #e6edf3; }
   .warning-box {
     background: rgba(248,81,73,0.08);
     border: 1px solid rgba(248,81,73,0.2);
@@ -110,32 +97,18 @@
     cursor: pointer;
     border: none;
     transition: all 0.2s;
-    text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    font-family: inherit;
   }
-  .btn-back {
-    background: #3fb950;
-    color: #fff;
-  }
-  .btn-back:hover { background: #2ea043; transform: translateY(-1px); }
-  .btn-proceed {
-    background: transparent;
-    color: #f85149;
-    border: 1px solid rgba(248,81,73,0.4);
-  }
+  .btn-back    { background: #3fb950; color: #fff; }
+  .btn-back:hover { background: #2ea043; }
+  .btn-proceed { background: transparent; color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
   .btn-proceed:hover { background: rgba(248,81,73,0.1); }
-  .btn-report {
-    background: #2f81f7;
-    color: #fff;
-  }
-  .btn-report:hover { background: #1a6fd4; transform: translateY(-1px); }
-  .powered {
-    margin-top: 2rem;
-    font-size: 0.75rem;
-    color: #484f58;
-  }
+  .btn-report  { background: #2f81f7; color: #fff; }
+  .btn-report:hover { background: #1a6fd4; }
+  .powered { margin-top: 2rem; font-size: 0.75rem; color: #484f58; }
   .powered span { color: #2f81f7; }
   .count-badge {
     display: inline-block;
@@ -147,23 +120,27 @@
     border-radius: 999px;
     margin-bottom: 1.5rem;
   }
+  #report-status {
+    margin-top: 1rem;
+    font-size: 0.82rem;
+    min-height: 1.2em;
+  }
 </style>
 </head>
 <body>
-
 <div class="card">
   <div class="shield-icon">🛡️</div>
   <h1>SCAM DETECTED</h1>
   <p class="subtitle">This website has been flagged as a confirmed scam</p>
 
-  <div class="count-badge" id="count-badge">🚨 Threats blocked: 1</div>
+  <div class="count-badge" id="count-badge">🚨 Threats blocked this session: 1</div>
 
-  <div class="url-box" id="url-box">Loading...</div>
+  <div class="url-box" id="url-box">Fetching URL...</div>
 
   <div class="info-grid">
     <div class="info-item">
       <div class="info-label">Scam Type</div>
-      <div class="info-val" id="scam-type">—</div>
+      <div class="info-val" id="scam-type">Unknown</div>
     </div>
     <div class="info-item">
       <div class="info-label">Database Status</div>
@@ -171,84 +148,142 @@
     </div>
     <div class="info-item" style="grid-column:span 2">
       <div class="info-label">Details</div>
-      <div class="info-val" id="scam-desc" style="font-weight:400;font-size:0.85rem;color:#8b949e">—</div>
+      <div class="info-val" id="scam-desc" style="font-weight:400;font-size:0.85rem;color:#8b949e">Loading...</div>
     </div>
   </div>
 
   <div class="warning-box">
-    ⚠️ <strong>Do NOT</strong> enter any personal information, passwords, or payment details on this site.
-    If you have already entered information, contact your bank immediately and report to
-    <strong>ScamAlert.sg</strong> or call the Anti-Scam Helpline at <strong>1800-722-6688</strong>.
+    ⚠️ <strong>Do NOT</strong> enter any personal information, passwords, or payment
+    details on this site. If you have already entered information, contact your bank
+    immediately and report to <strong>ScamAlert.sg</strong> or call the Anti-Scam
+    Helpline at <strong>1800-722-6688</strong>.
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-back" onclick="goBack()">
-      ← Take Me Back to Safety
-    </button>
-    <button class="btn btn-report" onclick="reportSite()">
-      📢 Report This Site
-    </button>
-    <button class="btn btn-proceed" onclick="proceedAnyway()">
-      Proceed Anyway (Unsafe)
-    </button>
+    <button class="btn btn-back"    id="btn-back">← Take Me Back to Safety</button>
+    <button class="btn btn-report"  id="btn-report">📢 Report This Site</button>
+    <button class="btn btn-proceed" id="btn-proceed">Proceed Anyway (Unsafe)</button>
   </div>
+  <div id="report-status"></div>
 
   <div class="powered">Protected by <span>CSIP2 ScamWatch</span> • Community Scam Intelligence</div>
 </div>
 
 <script>
-// Parse URL parameters
-const params  = new URLSearchParams(location.search);
-let data = {};
-try {
-    data = JSON.parse(decodeURIComponent(params.get('d') || '{}'));
-} catch(e) {}
+// ── Data variables ────────────────────────────────────────
+let blockedUrl  = '';
+let scamType    = 'Unknown';
+let scamDesc    = 'Confirmed scam in CSIP2 database';
+let threatCount = 1;
 
-// Populate page
-document.getElementById('url-box').textContent     = data.url      || 'Unknown URL';
-document.getElementById('scam-type').textContent   = data.scam_type || 'Unknown';
-document.getElementById('scam-desc').textContent   = data.desc      || 'Confirmed scam in CSIP2 database';
-document.getElementById('count-badge').textContent = `🚨 Threats blocked this session: ${data.count || 1}`;
-
-// Store the blocked URL so user can go back
-const blockedUrl  = data.url || '';
-const previousUrl = document.referrer || '';
-
-function goBack() {
-    if (history.length > 1) {
-        history.go(-2); // skip warning page
-    } else {
-        window.location.href = 'https://www.scamalert.sg/';
+// ── Read from hash fragment (always preserved in extension nav) ──
+function loadData() {
+    try {
+        const hash = window.location.hash.slice(1); // remove #
+        if (hash) {
+            const parsed = JSON.parse(decodeURIComponent(hash));
+            blockedUrl  = parsed.url       || '';
+            scamType    = parsed.scam_type || 'Unknown';
+            scamDesc    = parsed.desc      || 'Confirmed scam in CSIP2 database';
+            threatCount = parsed.count     || 1;
+        }
+    } catch(e) {
+        console.error('[CSIP2] Warning page parse error:', e, window.location.hash);
     }
+
+    // Update UI
+    document.getElementById('url-box').textContent     = blockedUrl  || 'URL not available';
+    document.getElementById('scam-type').textContent   = scamType;
+    document.getElementById('scam-desc').textContent   = scamDesc;
+    document.getElementById('count-badge').textContent = '🚨 Threats blocked this session: ' + threatCount;
 }
 
-function proceedAnyway() {
-    if (!blockedUrl) return;
-    const confirmed = confirm(
-        '⚠️ WARNING: This site is confirmed as a SCAM.\n\n' +
-        'Proceeding is at your own risk. Do NOT enter any personal or financial information.\n\n' +
-        'Are you sure you want to continue?'
-    );
-    if (confirmed) window.location.href = blockedUrl;
-}
+// Run on load
+document.addEventListener('DOMContentLoaded', loadData);
 
-function reportSite() {
-    const reportUrl = `http://localhost:5000/report`;
-    fetch(reportUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            indicator_type: 'url',
-            indicator:      blockedUrl,
-            scam_type:      data.scam_type || 'Others',
-            description:    'Reported via CSIP2 ScamWatch Extension warning page',
-            source:         'extension'
-        })
-    })
-    .then(r => r.json())
-    .then(() => alert('✅ Thank you! Report submitted to CSIP2 database.'))
-    .catch(() => alert('Could not reach backend. Please try again.'));
-}
+// ── Button handlers ────────────────────────────────────────
+
+// Back to Safety
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-back').addEventListener('click', function() {
+        if (window.history.length > 2) {
+            window.history.go(-2);
+        } else if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            window.location.href = 'https://www.google.com';
+        }
+    });
+
+    // Report This Site
+    document.getElementById('btn-report').addEventListener('click', async function() {
+        if (!blockedUrl) {
+            document.getElementById('report-status').textContent = '❌ No URL to report.';
+            return;
+        }
+        const btn = this;
+        btn.disabled    = true;
+        btn.textContent = '⏳ Submitting...';
+
+        try {
+            const res = await fetch('http://localhost:5000/report', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    indicator_type: 'url',
+                    indicator:      blockedUrl,
+                    scam_type:      (scamType !== 'Unknown' ? scamType : 'Others'),
+                    description:    'Reported via CSIP2 ScamWatch Extension warning page',
+                    source:         'extension'
+                })
+            });
+            const result = await res.json();
+
+            if (res.status === 201) {
+                btn.textContent      = '✅ Reported!';
+                btn.style.background = '#3fb950';
+                document.getElementById('report-status').innerHTML =
+                    '<span style="color:#3fb950">✅ Thank you! Report submitted.</span>';
+            } else if (result.duplicate) {
+                btn.textContent      = '👥 Already Reported';
+                btn.style.background = '#d29922';
+                document.getElementById('report-status').innerHTML =
+                    '<span style="color:#d29922">Already reported by ' + (result.report_count || 'multiple') + ' people.</span>';
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch(e) {
+            btn.textContent      = '❌ Failed';
+            btn.style.background = '#f85149';
+            document.getElementById('report-status').innerHTML =
+                '<span style="color:#f85149">Error: ' + e.message + '</span>';
+        }
+
+        setTimeout(function() {
+            btn.disabled         = false;
+            btn.textContent      = '📢 Report This Site';
+            btn.style.background = '';
+        }, 3000);
+    });
+
+    // Proceed Anyway
+    document.getElementById('btn-proceed').addEventListener('click', function() {
+        if (!blockedUrl) {
+            document.getElementById('report-status').textContent = '❌ No URL to proceed to.';
+            return;
+        }
+        const confirmed = confirm(
+            '⚠️ WARNING: This site is confirmed as a SCAM.
+
+' +
+            'Proceeding is extremely risky. Do NOT enter any personal or financial information.
+
+' +
+            'Are you absolutely sure you want to continue?'
+        );
+        if (confirmed) window.location.href = blockedUrl;
+    });
+});
 </script>
 </body>
 </html>
