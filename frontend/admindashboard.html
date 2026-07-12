@@ -444,7 +444,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'tab-all')">All Reports</div>
       <div class="tab" onclick="switchTab(this,'tab-pending')">Pending <span id="tab-pending-count" style="background:var(--amber-light);color:var(--amber);font-size:0.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px">...</span></div>
-      <div class="tab" onclick="switchTab(this,'tab-verified')">Verified</div>
+      <div class="tab" onclick="switchTab(this,'tab-suspected')">Suspected <span id="tab-suspected-count" style="background:var(--amber-light);color:var(--amber);font-size:0.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px"></span></div>
+      <div class="tab" onclick="switchTab(this,'tab-verified')">Confirmed</div>
       <div class="tab" onclick="switchTab(this,'tab-removed')">Removed</div>
     </div>
 
@@ -701,10 +702,10 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div class="form-group">
           <label class="form-label">Status</label>
           <select class="form-input" id="review-status">
-            <option value="pending">Pending</option>
-            <option value="verified">Verified</option>
-            <option value="flagged">Flagged (False Report)</option>
-            <option value="removed">Removed</option>
+            <option value="pending">⏳ Pending (needs review)</option>
+            <option value="flagged">⚠️ Suspected (community flagged)</option>
+            <option value="verified">🔴 Confirmed (blacklisted)</option>
+            <option value="removed">❌ Removed (false report)</option>
           </select>
         </div>
       </div>
@@ -715,14 +716,9 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-review')">Cancel</button>
-      <button class="btn btn-danger" onclick="actionReport('remove')">
-        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        Remove
-      </button>
-      <button class="btn btn-success" onclick="actionReport('verify')">
-        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-        Verify & Publish
-      </button>
+      <button class="btn btn-danger" onclick="actionReport('remove')">✕ Remove</button>
+      <button class="btn btn-amber"   onclick="actionReport('flag')">⚠️ Mark Suspected</button>
+      <button class="btn btn-success" onclick="actionReport('verify')">🔴 Confirm & Blacklist</button>
     </div>
   </div>
 </div>
@@ -1363,7 +1359,8 @@ function switchTab(el,tabId){
   el.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   const statusMap={
-    'tab-all':'','tab-pending':'pending','tab-verified':'verified','tab-removed':'removed'
+    'tab-all':'','tab-pending':'pending',
+    'tab-suspected':'flagged','tab-verified':'verified','tab-removed':'removed'
   };
   if(tabId in statusMap) { filterByStatus(statusMap[tabId]); }
 }
@@ -1383,10 +1380,22 @@ function renderReportsTable(data) {
     <tr id="row-${r.id}" class="${selectedRows.has(r.id)?'selected':''}">
       <td><input type="checkbox" ${selectedRows.has(r.id)?'checked':''} onchange="toggleRow(${r.id},this)"></td>
       <td><span class="td-mono">${r.report_id}</span></td>
-      <td><span class="td-main">${r.title}</span>${r.url?`<div class="td-url">🔗 ${r.url}</div>`:''}</td>
+      <td>
+        <span class="td-main">${r.title}</span>
+        ${r.url?`<div class="td-url">🔗 ${r.url}</div>`:''}
+      </td>
       <td><span class="type-pill">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
       <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
-      <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      <td>
+        ${(()=>{
+          const cnt = r.report_count || 1;
+          if(r.status==='verified')  return '<span class="badge badge-verified">🔴 Confirmed</span>';
+          if(r.status==='removed')   return '<span class="badge badge-removed">❌ Removed</span>';
+          if(r.status==='pending' && cnt>=3) return '<span class="badge badge-flagged">⚠️ Suspected</span>';
+          return '<span class="badge badge-pending">⏳ Pending</span>';
+        })()}
+        <span style="font-size:0.72rem;color:var(--ink-muted);margin-left:4px">👥${r.report_count||1}</span>
+      </td>
       <td>${timeAgo(r.created_at)}</td>
       <td>
         <div class="row-actions">
@@ -1394,12 +1403,9 @@ function renderReportsTable(data) {
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Review
           </button>
-          <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')" title="Verify">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </button>
-          <button class="btn btn-danger btn-sm" onclick="quickAction(${r.id},'remove')" title="Remove">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-          </button>
+          <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')" title="Confirm (Blacklist)">🔴</button>
+          <button class="btn btn-amber btn-sm"   onclick="quickAction(${r.id},'flag')"   title="Suspect (Whitelist)">⚠️</button>
+          <button class="btn btn-danger btn-sm"  onclick="quickAction(${r.id},'remove')" title="Remove">✕</button>
         </div>
       </td>
     </tr>`).join('');

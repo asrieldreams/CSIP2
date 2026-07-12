@@ -75,30 +75,62 @@ def submit_report():
         if existing and existing['status'] in ('approved', 'pending'):
             # Increment report count
             count = 1
+            current_list = existing.get('list_type', '')
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "UPDATE reports SET report_count = COALESCE(report_count, 1) + 1 WHERE id = %s",
+                        'UPDATE reports SET report_count = COALESCE(report_count, 1) + 1 WHERE id = %s',
                         (existing['id'],)
                     )
                 conn.commit()
-                # Fetch updated count
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "SELECT report_count FROM reports WHERE id = %s",
+                        'SELECT report_count, status, list_type FROM reports WHERE id = %s',
                         (existing['id'],)
                     )
                     row = cursor.fetchone()
-                    count = row['report_count'] if row and row.get('report_count') else 1
+                    if row:
+                        count        = row['report_count'] or 1
+                        current_list = row['list_type'] or ''
             except Exception as e:
-                print(f"[report_count] {e}")
+                print(f'[report_count] {e}')
+
+            # ── Crowdsourced auto-promotion ─────────────────────
+            # 3+ reports  → auto-flag SUSPECTED (whitelist)
+            # 5+ reports  → auto-BLACKLIST (confirmed, no admin needed)
+            promotion_tier = ''
+            promotion_msg  = ''
+            try:
+                already_black = (existing['status'] == 'approved' and current_list == 'blacklist')
+                if count >= 5 and not already_black:
+                    with conn.cursor() as cursor:
+                        sql = "UPDATE reports SET status='approved', list_type='blacklist', severity=COALESCE(NULLIF(severity,''),'high') WHERE id=%s"
+                        cursor.execute(sql, (existing['id'],))
+                    conn.commit()
+                    promotion_tier = 'blacklist'
+                    promotion_msg  = 'Thank you. Your report has been recorded and reviewed.'
+                    print(f'[crowdsource] AUTO-BLACKLIST id={existing["id"]} count={count}')
+                elif count >= 3 and existing['status'] == 'pending':
+                    with conn.cursor() as cursor:
+                        cursor.execute(
+                            "UPDATE reports SET status='approved', list_type='whitelist' WHERE id=%s",
+                            (existing['id'],)
+                        )
+                    conn.commit()
+                    promotion_tier = 'whitelist'
+                    promotion_msg  = 'Thank you. Your report has been recorded and is under review.'
+                    print(f'[crowdsource] AUTO-FLAG id={existing["id"]} count={count}')
+            except Exception as e:
+                print(f'[crowdsource] {e}')
 
             return jsonify({
-                'message':    f'Thanks! Now reported by {count} people.',
-                'duplicate':  True,
-                'status':     existing['status'],
-                'report_id':  existing['id'],
-                'report_count': count,
+                'message':        promotion_msg or f'Thank you. Your report has been recorded.',
+                'duplicate':      True,
+                'status':         existing['status'],
+                'report_id':      existing['id'],
+                'report_count':   count,
+                'promoted':       bool(promotion_tier),
+                'promotion_tier': promotion_tier,
             }), 200
 
         with conn.cursor() as cursor:

@@ -207,17 +207,27 @@ async def submit_report_to_new_api(update, context):
                 reply_markup=get_main_menu()
             )
         elif data.get('duplicate'):
-            dup_status  = data.get('status', 'pending')
-            count       = int(data.get('report_count', 1))
-            status_text = '✅ verified scam' if dup_status == 'approved' \
-                          else '⏳ under review'
+            dup_status     = data.get('status', 'pending')
+            count          = int(data.get('report_count', 1))
+            promotion_tier = data.get('promotion_tier', '')
+
+            # Status label based on current tier — no internal logic exposed
+            if promotion_tier == 'blacklist' or (dup_status == 'approved'):
+                status_line = '🔴 This indicator is on our *confirmed scam watchlist*.'
+            elif promotion_tier == 'whitelist':
+                status_line = '⚠️ This indicator has been *flagged as suspicious* by our community.'
+            else:
+                status_line = '🔍 This indicator is currently *under community review*.'
+
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f"⚠️ *Already Reported*\n"
+                text=f"✅ *Thank you for your report!*\n"
                      f"{DIVIDER}\n"
-                     f"📌 `{indicator}` is {status_text}\n"
-                     f"👥 Now reported by *{count}* {'person' if count==1 else 'people'}\n\n"
-                     f"💡 Use 🔍 *Check* to see its current status",
+                     f"Your report has been recorded.\n\n"
+                     f"📌 `{indicator}`\n"
+                     f"{status_line}\n"
+                     f"👥 *{count}* {'person has' if count==1 else 'people have'} reported this.\n\n"
+                     f"Every report helps protect the community. 🛡️",
                 parse_mode='Markdown',
                 reply_markup=get_main_menu()
             )
