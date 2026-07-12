@@ -43,6 +43,7 @@ WAITING_FOR_SEVERITY  = 'WAITING_FOR_SEVERITY'
 WAITING_FOR_PLATFORM  = 'WAITING_FOR_PLATFORM'
 WAITING_FOR_DESC      = 'WAITING_FOR_DESC'
 WAITING_FOR_CONFIRM   = 'WAITING_FOR_CONFIRM'
+WAITING_FOR_CHECK_URL = 'WAITING_FOR_CHECK_URL'  # ← Check flow
 
 SCAM_TYPES = [
     'Phishing', 'E-Commerce Scam', 'Impersonation',
@@ -253,18 +254,97 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
 #  MENU BUTTON HANDLER
 # ============================================================
 
+
+
+# ============================================================
+#  CHECK CONVERSATION FLOW
+# ============================================================
+
+async def check_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User pressed 🔍 Check — ask for URL."""
+    from telegram import ForceReply
+    await update.message.reply_text(
+        f"🔍 *Check a Scam Indicator*\n{DIVIDER}\n\n"
+        f"Send me what you want to check:\n\n"
+        f"🔗 A URL or link\n"
+        f"📞 A phone number\n"
+        f"📧 An email address\n\n"
+        f"_Just type or paste it below — no command needed!_\n\n"
+        f"Type /cancel to go back.",
+        parse_mode='Markdown',
+        reply_markup=ForceReply(selective=True, input_field_placeholder="Paste URL, phone or email here...")
+    )
+    return WAITING_FOR_CHECK_URL
+
+
+async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User sent something to check — run check and return result."""
+    from commands import check_single_indicator_sync, format_check_result, normalize_url
+
+    raw = update.message.text.strip()
+    if not raw:
+        return WAITING_FOR_CHECK_URL
+
+    indicator = normalize_url(raw)
+
+    await update.message.reply_text(
+        f"🔍 Checking `{indicator}`...",
+        parse_mode='Markdown'
+    )
+
+    result = check_single_indicator_sync(indicator)
+    text   = format_check_result(indicator, result)
+
+    # Add "check another" prompt
+    keyboard = [[
+        InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+        InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
+    ]]
+
+    await update.message.reply_text(
+        text,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return ConversationHandler.END
+
+
+async def check_another_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User tapped Check Another — restart check flow."""
+    query = update.callback_query
+    await query.answer()
+    from telegram import ForceReply
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"🔍 *Check Another*\n{DIVIDER}\n\n"
+             f"Send me the URL, phone, or email to check:",
+        parse_mode='Markdown',
+        reply_markup=ForceReply(selective=True, input_field_placeholder="Paste URL, phone or email here...")
+    )
+    return WAITING_FOR_CHECK_URL
+
+
+async def report_from_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User tapped Report This after a check — start report with pre-filled indicator."""
+    query = update.callback_query
+    await query.answer()
+
+    # Try to extract URL from the message above the button
+    original_msg = query.message.text or ''
+    import re
+    urls = re.findall(r'`([^`]+)`', original_msg)
+    if urls:
+        context.user_data['indicator']      = urls[0]
+        context.user_data['indicator_type'] = detect_indicator_type(urls[0])
+
+    await query.edit_message_reply_markup(reply_markup=None)
+    await report_command(update, context)
+
 async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "🔍 Check":
-        await update.message.reply_text(
-            f"🔍 *Check a Scam Indicator*\n{DIVIDER}\n\n"
-            f"Send what you want to check:\n\n"
-            f"🔗 `/check http://suspicious-site.com`\n"
-            f"📞 `/check +65 9123 4567`\n"
-            f"📧 `/check scam@fake-bank.com`\n"
-            f"📷 Or send a *QR code photo*!",
-            parse_mode='Markdown', reply_markup=get_main_menu()
-        )
+        await check_start(update, context)
+        return WAITING_FOR_CHECK_URL
     elif text == "📢 Report":
         await report_command(update, context)
     elif text == "📋 Latest":
@@ -754,6 +834,22 @@ async def handle_forwarded_report_start(update: Update, context: ContextTypes.DE
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # ── Check ConversationHandler ────────────────────────────
+    check_conv = ConversationHandler(
+        entry_points=[
+            CommandHandler('check', check_start),
+            MessageHandler(filters.Regex(r'^🔍 Check$'), check_start),
+        ],
+        states={
+            WAITING_FOR_CHECK_URL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_check_url),
+            ],
+        },
+        fallbacks=[CommandHandler('cancel', cancel_command)],
+        name='check_conv',
+        per_message=False,
+    )
+
     report_conv = ConversationHandler(
         entry_points=[
             CommandHandler('report', report_command),
@@ -786,9 +882,9 @@ def main():
     )
 
     # ── Register all handlers ──────────────────────────────
+    app.add_handler(check_conv)
     app.add_handler(CommandHandler('start',   start))
     app.add_handler(CommandHandler('help',    help_command))
-    app.add_handler(CommandHandler('check',   check_command))
     app.add_handler(CommandHandler('status',  status_command))
     app.add_handler(CommandHandler('about',   about_command))
     app.add_handler(CommandHandler('history', history_command))
@@ -814,6 +910,13 @@ def main():
     # fwd:check and fwd:dismiss are standalone (outside ConversationHandler)
     app.add_handler(CallbackQueryHandler(
         handle_forwarded_action, pattern='^fwd:(check|dismiss)$'
+    ))
+    # Check result inline buttons
+    app.add_handler(CallbackQueryHandler(
+        check_another_callback, pattern='^check_another$'
+    ))
+    app.add_handler(CallbackQueryHandler(
+        report_from_check_callback, pattern='^report_from_check$'
     ))
     # fwd:report is handled inside ConversationHandler as entry_point (registered above)
 

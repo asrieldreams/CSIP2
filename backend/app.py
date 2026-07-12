@@ -123,6 +123,80 @@ def submit_report():
             except Exception as e:
                 print(f'[crowdsource] {e}')
 
+
+            # ── Record this vote ──────────────────────────────────
+            new_scam_type = data.get('scam_type', '')
+            new_severity  = data.get('severity', '')
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO report_votes
+                            (report_id, scam_type, severity, source, ip_address)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        existing['id'],
+                        new_scam_type or None,
+                        new_severity  or None,
+                        data.get('source', 'unknown'),
+                        request.remote_addr
+                    ))
+                conn.commit()
+            except Exception as e:
+                print(f'[votes] Insert error: {e}')
+
+            # ── Consensus check ────────────────────────────────────
+            # Tally ALL votes (original report + all additional votes)
+            consensus_type     = None
+            consensus_severity = None
+            try:
+                with conn.cursor() as cursor:
+                    # Count scam_type votes from additional reporters
+                    cursor.execute("""
+                        SELECT scam_type, COUNT(*) as votes
+                        FROM report_votes
+                        WHERE report_id = %s AND scam_type IS NOT NULL
+                        GROUP BY scam_type ORDER BY votes DESC LIMIT 1
+                    """, (existing['id'],))
+                    top_type = cursor.fetchone()
+
+                    # Count severity votes
+                    cursor.execute("""
+                        SELECT severity, COUNT(*) as votes
+                        FROM report_votes
+                        WHERE report_id = %s AND severity IS NOT NULL
+                        GROUP BY severity ORDER BY votes DESC LIMIT 1
+                    """, (existing['id'],))
+                    top_sev = cursor.fetchone()
+
+                # Consensus threshold: majority of votes (>50%)
+                total_votes = count  # report_count includes original
+                if top_type and top_type['votes'] > total_votes / 2:
+                    consensus_type = top_type['scam_type']
+                if top_sev and top_sev['votes'] > total_votes / 2:
+                    consensus_severity = top_sev['severity']
+
+                # Apply consensus if reached
+                updates = []
+                vals    = []
+                if consensus_type:
+                    updates.append('scam_type = %s')
+                    vals.append(consensus_type)
+                    print(f'[consensus] scam_type → {consensus_type} ({top_type["votes"]}/{total_votes} votes)')
+                if consensus_severity:
+                    updates.append('severity = %s')
+                    vals.append(consensus_severity)
+                    print(f'[consensus] severity → {consensus_severity} ({top_sev["votes"]}/{total_votes} votes)')
+                if updates:
+                    vals.append(existing['id'])
+                    with conn.cursor() as cursor:
+                        cursor.execute(
+                            f'UPDATE reports SET {", ".join(updates)} WHERE id = %s',
+                            vals
+                        )
+                    conn.commit()
+            except Exception as e:
+                print(f'[consensus] Error: {e}')
+
             return jsonify({
                 'message':        promotion_msg or f'Thank you. Your report has been recorded.',
                 'duplicate':      True,
@@ -157,6 +231,18 @@ def submit_report():
                       data['scam_type'], description,
                       data.get('source', 'website')))
         conn.commit()
+
+        # Record first vote for consensus tracking
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    'INSERT INTO report_votes (report_id, scam_type, severity, source, ip_address) VALUES (%s, %s, %s, %s, %s)',
+                    (new_id, data.get('scam_type',''), data.get('severity','medium'), data.get('source','unknown'), request.remote_addr)
+                )
+            conn.commit()
+        except Exception as e:
+            print(f'[votes] first vote: {e}')
+
         return jsonify({'message': 'Report submitted. Pending admin review.'}), 201
 
     except Exception as e:
