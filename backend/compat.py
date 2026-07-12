@@ -134,9 +134,11 @@ def report_to_scam(r):
         'phone_number':   indicator if ind_type == 'phone' else None,
         'amount_lost':    amount,
         'incident_date':  inc_date,
-        'report_count':   r.get('report_count') or 1,
-        'created_at':     created,
-        'updated_at':     created,
+        'report_count':      r.get('report_count') or 1,
+        'admin_locked':      bool(r.get('admin_locked', 0)),
+        'false_report_count': r.get('false_report_count') or 0,
+        'created_at':        created,
+        'updated_at':        created,
     }
 
 
@@ -302,7 +304,7 @@ def api_get_scam(scam_id):
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type, description,
                        source, list_type, submitted_at, status,
-                       severity, platform, amount_lost, incident_date, report_count
+                       severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                 FROM reports WHERE id = %s
             """, (scam_id,))
             row = cursor.fetchone()
@@ -567,32 +569,32 @@ def api_admin_reports():
         # Confirmed = approved + blacklist
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date, report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'approved' AND list_type = 'blacklist'"""
         params = []
     elif status == 'flagged':
         # Suspected = approved + whitelist
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date, report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'approved' AND list_type = 'whitelist'"""
         params = []
     elif status == 'removed':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date, report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'rejected'"""
         params = []
     elif status == 'pending':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date, report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'pending'"""
         params = []
     else:
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date, report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE 1=1"""
         params = []
 
@@ -792,6 +794,115 @@ def api_delete_indicator(iid):
             cursor.execute("DELETE FROM scanner_indicators WHERE id = %s", (iid,))
         conn.commit()
         return jsonify({'message': 'Deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+@compat_bp.route('/api/reports/<int:report_id>/false-report', methods=['POST'])
+@require_token
+def api_false_report(report_id):
+    """
+    Admin or community member marks a report as false.
+    Layered protection:
+    - admin_locked reports: IMMUNE — votes ignored
+    - confirmed (blacklist): only admin can change
+    - suspected (whitelist): 5 false votes → back to pending
+    - pending: 5 false votes → flagged for admin review
+    """
+    current_admin = get_current_admin()
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, status, list_type, admin_locked, false_report_count FROM reports WHERE id = %s",
+                (report_id,)
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            return jsonify({'error': 'Report not found'}), 404
+
+        # ── IMMUNE: admin-locked reports cannot be demoted by community ──
+        if row.get('admin_locked'):
+            return jsonify({
+                'message':  'This report has been admin-verified and is immune to community votes.',
+                'immune':   True,
+                'status':   row['status'],
+            }), 200
+
+        # ── Confirmed (blacklist) — only admin can change ──
+        if row['status'] == 'approved' and row['list_type'] == 'blacklist':
+            return jsonify({
+                'message':  'Confirmed reports can only be changed by an admin. Use the dashboard.',
+                'immune':   True,
+            }), 200
+
+        # ── Increment false report count ──────────────────────────────
+        new_false_count = (row.get('false_report_count') or 0) + 1
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "UPDATE reports SET false_report_count = %s WHERE id = %s",
+                (new_false_count, report_id)
+            )
+        conn.commit()
+
+        # ── Apply demotion if threshold reached ───────────────────────
+        # Threshold: 5 false votes to demote one tier
+        THRESHOLD = 5
+        demoted = False
+        new_tier = ''
+
+        if new_false_count >= THRESHOLD:
+            if row['status'] == 'approved' and row['list_type'] == 'whitelist':
+                # Suspected → back to Pending
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET status='pending', list_type=NULL, false_report_count=0 WHERE id=%s",
+                        (report_id,)
+                    )
+                conn.commit()
+                demoted  = True
+                new_tier = 'pending'
+                print(f"[false-report] Demoted {report_id} from suspected → pending ({new_false_count} false votes)")
+
+                log_audit(
+                    action='Community Demoted',
+                    target=f"SS-{str(report_id).zfill(5)}",
+                    target_id=report_id,
+                    detail=f"Suspected → Pending after {new_false_count} false report votes",
+                    admin=current_admin
+                )
+
+            elif row['status'] == 'pending':
+                # Pending → flag for admin review (don't remove, just notify)
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET false_report_count=0 WHERE id=%s",
+                        (report_id,)
+                    )
+                conn.commit()
+                demoted  = True
+                new_tier = 'admin_review'
+                print(f"[false-report] Report {report_id} flagged for admin review ({new_false_count} false votes)")
+
+                log_audit(
+                    action='Flagged for Review',
+                    target=f"SS-{str(report_id).zfill(5)}",
+                    target_id=report_id,
+                    detail=f"Pending report received {new_false_count} false votes — needs admin review",
+                    admin=current_admin
+                )
+
+        return jsonify({
+            'message':          'Thank you for your feedback.',
+            'false_count':      new_false_count,
+            'threshold':        THRESHOLD,
+            'remaining':        max(0, THRESHOLD - new_false_count),
+            'demoted':          demoted,
+            'new_tier':         new_tier,
+        }), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

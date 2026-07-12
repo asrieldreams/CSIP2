@@ -95,22 +95,18 @@ def submit_report():
             except Exception as e:
                 print(f'[report_count] {e}')
 
-            # ── Crowdsourced auto-promotion ─────────────────────
-            # 3+ reports  → auto-flag SUSPECTED (whitelist)
-            # 5+ reports  → auto-BLACKLIST (confirmed, no admin needed)
+            # ── Crowdsourced auto-promotion (CEILING = SUSPECTED) ──────
+            # Community can ONLY auto-promote up to SUSPECTED.
+            # CONFIRMED (blacklist) requires admin — no exceptions.
+            # This prevents student pranks from fully blacklisting legit sites.
             promotion_tier = ''
             promotion_msg  = ''
             try:
-                already_black = (existing['status'] == 'approved' and current_list == 'blacklist')
-                if count >= 5 and not already_black:
-                    with conn.cursor() as cursor:
-                        sql = "UPDATE reports SET status='approved', list_type='blacklist', severity=COALESCE(NULLIF(severity,''),'high') WHERE id=%s"
-                        cursor.execute(sql, (existing['id'],))
-                    conn.commit()
-                    promotion_tier = 'blacklist'
-                    promotion_msg  = 'Thank you. Your report has been recorded and reviewed.'
-                    print(f'[crowdsource] AUTO-BLACKLIST id={existing["id"]} count={count}')
-                elif count >= 3 and existing['status'] == 'pending':
+                already_suspect = (existing['status'] == 'approved' and current_list == 'whitelist')
+                already_confirmed = (existing['status'] == 'approved' and current_list == 'blacklist')
+
+                # Only auto-promote to SUSPECTED — never to CONFIRMED
+                if count >= 3 and existing['status'] == 'pending':
                     with conn.cursor() as cursor:
                         cursor.execute(
                             "UPDATE reports SET status='approved', list_type='whitelist' WHERE id=%s",
@@ -119,8 +115,12 @@ def submit_report():
                     conn.commit()
                     promotion_tier = 'whitelist'
                     promotion_msg  = 'Thank you. Your report has been recorded and is under review.'
-                    print(f'[crowdsource] AUTO-FLAG id={existing["id"]} count={count}')
+                    print(f'[crowdsource] AUTO-SUSPECT id={existing["id"]} count={count}')
+                # Already suspected + more reports → stay suspected, admin decides
+                elif count >= 5 and already_suspect:
+                    print(f'[crowdsource] Ceiling reached id={existing["id"]} count={count} — waiting for admin')
             except Exception as e:
+                print(f'[crowdsource] {e}')
                 print(f'[crowdsource] {e}')
 
 
@@ -333,7 +333,7 @@ def check_indicator():
             variants = url_variants(normalized)
             placeholders = ','.join(['%s'] * len(variants))
             cursor.execute(f"""
-                SELECT id, list_type, scam_type, description,
+                SELECT id, list_type, scam_type, description, severity,
                        COALESCE(report_count, 1) as report_count
                 FROM reports
                 WHERE indicator IN ({placeholders})
@@ -359,12 +359,14 @@ def check_indicator():
             return jsonify({'status': 'blacklist', 'report_id': row['id'],
                             'indicator': indicator, 'scam_type': row['scam_type'],
                             'description': row['description'],
+                            'severity': row.get('severity') or 'high',
                             'report_count': row.get('report_count', 1),
                             'message': 'WARNING: Confirmed scam. Do not proceed.'}), 200
         elif row['list_type'] == 'whitelist':
             return jsonify({'status': 'whitelist', 'report_id': row['id'],
                             'indicator': indicator, 'scam_type': row['scam_type'],
                             'description': row['description'],
+                            'severity': row.get('severity') or 'medium',
                             'report_count': row.get('report_count', 1),
                             'message': 'CAUTION: Flagged. Proceed with care.'}), 200
         else:

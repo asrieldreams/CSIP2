@@ -119,50 +119,33 @@ def format_check_result(indicator: str, result: dict) -> str:
     description = result.get('description', '')
 
     if status == 'blacklist':
-        count = result.get('report_count', 1)
+        count    = result.get('report_count', 1)
+        severity = (result.get('severity') or 'high').capitalize()
+        sev_icon = {'High': '🔴', 'Medium': '🟡', 'Low': '🟢'}.get(severity, '🔴')
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
             f"🔗 `{indicator}`\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
+            f"{sev_icon} *Severity:* {severity}\n"
             f"📝 *Details:* {description if description else 'No details available'}\n"
             f"👥 *Reported by:* {count} {'person' if count == 1 else 'people'}\n\n"
             f"⛔ *DO NOT* visit this site or call this number\n"
             f"🚔 Report to SPF at *999* or *scamalert.sg*"
         )
     elif status == 'whitelist':
+        count    = result.get('report_count', 1)
+        severity = (result.get('severity') or 'medium').capitalize()
+        sev_icon = {'High': '🔴', 'Medium': '🟡', 'Low': '🟢'}.get(severity, '🟡')
         return (
-            f"⚠️ *FLAGGED — SUSPECTED SCAM*\n"
+            f"⚠️ *SUSPECTED — Community Flagged*\n"
             f"{DIVIDER}\n"
             f"🔗 `{indicator}`\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
-            f"📝 *Details:* {description if description else 'No details available'}\n\n"
-            f"⚠️ This has been *flagged* by the community\n"
-            f"🧠 Proceed with extreme caution"
-        )
-    elif status == 'pending':
-        return (
-            f"⏳ *UNDER REVIEW*\n"
-            f"{DIVIDER}\n"
-            f"🔗 `{indicator}`\n\n"
-            f"📋 This has been reported and is *awaiting admin verification*\n"
-            f"💡 Check back later for the verdict"
-        )
-    elif status == 'clean':
-        return (
-            f"✅ *NOT IN DATABASE*\n"
-            f"{DIVIDER}\n"
-            f"🔗 `{indicator}`\n\n"
-            f"📋 No reports found for this indicator\n"
-            f"⚠️ Absence of reports doesn't guarantee safety\n"
-            f"💡 If suspicious, use */report* to flag it"
-        )
-    else:
-        return (
-            f"⚠️ *SERVER ERROR*\n"
-            f"{DIVIDER}\n"
-            f"Could not check `{indicator}`\n"
-            f"Please try again later"
+            f"{sev_icon} *Severity:* {severity}\n"
+            f"📝 *Details:* {description if description else 'No details available'}\n"
+            f"👥 *Reported by:* {count} {'person' if count == 1 else 'people'}\n\n"
+            f"⚠️ Exercise caution — not yet fully confirmed"
         )
 
 

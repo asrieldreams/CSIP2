@@ -296,10 +296,15 @@ async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text   = format_check_result(indicator, result)
 
     # Add "check another" prompt
-    keyboard = [[
-        InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
-        InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
-    ]]
+    keyboard = [
+        [
+            InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+            InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
+        ],
+        [
+            InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
+        ],
+    ]
 
     await update.message.reply_text(
         text,
@@ -322,6 +327,19 @@ async def check_another_callback(update: Update, context: ContextTypes.DEFAULT_T
         reply_markup=ForceReply(selective=True, input_field_placeholder="Paste URL, phone or email here...")
     )
     return WAITING_FOR_CHECK_URL
+
+
+async def check_back_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User tapped Back to Menu — dismiss buttons and show main menu."""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_reply_markup(reply_markup=None)
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"🏠 *Back to Main Menu*",
+        parse_mode='Markdown',
+        reply_markup=get_main_menu()
+    )
 
 
 async def report_from_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -917,6 +935,9 @@ def main():
     ))
     app.add_handler(CallbackQueryHandler(
         report_from_check_callback, pattern='^report_from_check$'
+    ))
+    app.add_handler(CallbackQueryHandler(
+        check_back_menu_callback, pattern='^check_back_menu$'
     ))
     # fwd:report is handled inside ConversationHandler as entry_point (registered above)
 

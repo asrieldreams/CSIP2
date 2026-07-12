@@ -1389,10 +1389,17 @@ function renderReportsTable(data) {
       <td>
         ${(()=>{
           const cnt = r.report_count || 1;
-          if(r.status==='verified')  return '<span class="badge badge-verified">🔴 Confirmed</span>';
-          if(r.status==='removed')   return '<span class="badge badge-removed">❌ Removed</span>';
-          if(r.status==='pending' && cnt>=3) return '<span class="badge badge-flagged">⚠️ Suspected</span>';
-          return '<span class="badge badge-pending">⏳ Pending</span>';
+          const lock = r.admin_locked ? ' 🔒' : '';
+          const falseVotes = r.false_report_count > 0
+            ? `<span style="font-size:0.68rem;color:var(--red);margin-left:4px">⚑${r.false_report_count}</span>`
+            : '';
+          if(r.status==='verified')
+            return `<span class="badge badge-verified">🔴 Confirmed${lock}</span>${falseVotes}`;
+          if(r.status==='removed')
+            return `<span class="badge badge-removed">❌ Removed</span>`;
+          if(r.status==='flagged')
+            return `<span class="badge badge-flagged">⚠️ Suspected</span>${falseVotes}`;
+          return `<span class="badge badge-pending">⏳ Pending</span>${falseVotes}`;
         })()}
         <span style="font-size:0.72rem;color:var(--ink-muted);margin-left:4px">👥${r.report_count||1}</span>
       </td>
@@ -1596,12 +1603,25 @@ function openReviewModal(id){
   if(!r) return;
   currentReportId=id;
   document.getElementById('review-modal-title').textContent='Review: '+r.report_id;
+  const lockBadge = r.admin_locked
+    ? `<div class="info-item" style="grid-column:span 2;background:rgba(47,129,247,0.1);border-color:rgba(47,129,247,0.3)">
+        <div class="info-key">🔒 Admin Lock</div>
+        <div class="info-val" style="color:var(--accent);font-size:0.82rem">
+          This report is admin-verified. Community false votes are ignored.
+        </div>
+       </div>`
+    : '';
+  const falseBadge = r.false_report_count > 0
+    ? `<div class="info-item"><div class="info-key">⚑ False Votes</div><div class="info-val" style="color:var(--red)">${r.false_report_count} dispute${r.false_report_count!==1?'s':''}</div></div>`
+    : '';
   document.getElementById('review-info-grid').innerHTML=`
+    ${lockBadge}
     <div class="info-item"><div class="info-key">Type</div><div class="info-val">${r.type}</div></div>
     <div class="info-item"><div class="info-key">Reports</div><div class="info-val">${r.report_count}</div></div>
     ${r.url?`<div class="info-item" style="grid-column:span 2"><div class="info-key">URL</div><div class="info-val" style="color:var(--red);font-family:var(--font-mono);font-size:0.82rem">⛔ ${r.url}</div></div>`:''}
     <div class="info-item"><div class="info-key">Submitted</div><div class="info-val">${fmtDate(r.created_at)}</div></div>
-    <div class="info-item"><div class="info-key">Platform</div><div class="info-val">${r.platform||'—'}</div></div>`;
+    <div class="info-item"><div class="info-key">Platform</div><div class="info-val">${r.platform||'—'}</div></div>
+    ${falseBadge}`;
   document.getElementById('review-desc').value = r.description||r.title;
   document.getElementById('review-severity').value = r.severity;
   document.getElementById('review-status').value = r.status;
