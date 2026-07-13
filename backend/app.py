@@ -73,138 +73,99 @@ def submit_report():
             existing = cursor.fetchone()
 
         if existing and existing['status'] in ('approved', 'pending'):
-            # Increment report count
+            # ── Step 1: Increment report count (fresh connection) ──────
             count = 1
-            current_list = existing.get('list_type', '')
             try:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        'UPDATE reports SET report_count = COALESCE(report_count, 1) + 1 WHERE id = %s',
+                c1 = get_connection()
+                with c1.cursor() as cur:
+                    cur.execute(
+                        "UPDATE reports SET report_count = COALESCE(report_count,1)+1 WHERE id=%s",
                         (existing['id'],)
                     )
-                conn.commit()
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        'SELECT report_count, status, list_type FROM reports WHERE id = %s',
+                c1.commit()
+                with c1.cursor() as cur:
+                    cur.execute(
+                        "SELECT report_count, status, list_type FROM reports WHERE id=%s",
                         (existing['id'],)
                     )
-                    row = cursor.fetchone()
+                    row = cur.fetchone()
                     if row:
                         count        = row['report_count'] or 1
                         current_list = row['list_type'] or ''
+                        current_status = row['status']
             except Exception as e:
                 print(f'[report_count] {e}')
+                current_list   = existing.get('list_type', '')
+                current_status = existing['status']
 
-            # ── Crowdsourced auto-promotion (CEILING = SUSPECTED) ──────
-            # Community can ONLY auto-promote up to SUSPECTED.
-            # CONFIRMED (blacklist) requires admin — no exceptions.
-            # This prevents student pranks from fully blacklisting legit sites.
-            promotion_tier = ''
-            promotion_msg  = ''
+            # ── Step 2: Crowdsource promotion (fresh connection) ─────────
+            # Ceiling = SUSPECTED — community cannot auto-blacklist
             try:
-                already_suspect = (existing['status'] == 'approved' and current_list == 'whitelist')
-                already_confirmed = (existing['status'] == 'approved' and current_list == 'blacklist')
-
-                # Only auto-promote to SUSPECTED — never to CONFIRMED
-                if count >= 3 and existing['status'] == 'pending':
-                    with conn.cursor() as cursor:
-                        cursor.execute(
+                c2 = get_connection()
+                if count >= 3 and current_status == 'pending':
+                    with c2.cursor() as cur:
+                        cur.execute(
                             "UPDATE reports SET status='approved', list_type='whitelist' WHERE id=%s",
                             (existing['id'],)
                         )
-                    conn.commit()
-                    promotion_tier = 'whitelist'
-                    promotion_msg  = 'Thank you. Your report has been recorded and is under review.'
+                    c2.commit()
                     print(f'[crowdsource] AUTO-SUSPECT id={existing["id"]} count={count}')
-                # Already suspected + more reports → stay suspected, admin decides
-                elif count >= 5 and already_suspect:
-                    print(f'[crowdsource] Ceiling reached id={existing["id"]} count={count} — waiting for admin')
+                elif count >= 5 and current_status == 'approved' and current_list == 'whitelist':
+                    print(f'[crowdsource] Ceiling id={existing["id"]} count={count} — admin needed')
             except Exception as e:
                 print(f'[crowdsource] {e}')
-                print(f'[crowdsource] {e}')
 
-
-            # ── Record this vote ──────────────────────────────────
-            new_scam_type = data.get('scam_type', '')
-            new_severity  = data.get('severity', '')
+            # ── Step 3: Record vote (fresh connection) ────────────────────
             try:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO report_votes
-                            (report_id, scam_type, severity, source, ip_address)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (
-                        existing['id'],
-                        new_scam_type or None,
-                        new_severity  or None,
-                        data.get('source', 'unknown'),
-                        request.remote_addr
-                    ))
-                conn.commit()
+                c3 = get_connection()
+                with c3.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO report_votes (report_id, scam_type, severity, source, ip_address) VALUES (%s,%s,%s,%s,%s)",
+                        (existing['id'], data.get('scam_type',''), data.get('severity',''), data.get('source','unknown'), request.remote_addr)
+                    )
+                c3.commit()
             except Exception as e:
-                print(f'[votes] Insert error: {e}')
+                print(f'[votes] {e}')
 
-            # ── Consensus check ────────────────────────────────────
-            # Tally ALL votes (original report + all additional votes)
-            consensus_type     = None
-            consensus_severity = None
+            # ── Step 4: Consensus check (fresh connection) ────────────────
             try:
-                with conn.cursor() as cursor:
-                    # Count scam_type votes from additional reporters
-                    cursor.execute("""
-                        SELECT scam_type, COUNT(*) as votes
-                        FROM report_votes
-                        WHERE report_id = %s AND scam_type IS NOT NULL
-                        GROUP BY scam_type ORDER BY votes DESC LIMIT 1
-                    """, (existing['id'],))
-                    top_type = cursor.fetchone()
+                c4 = get_connection()
+                with c4.cursor() as cur:
+                    cur.execute(
+                        "SELECT scam_type, COUNT(*) as v FROM report_votes WHERE report_id=%s AND scam_type IS NOT NULL GROUP BY scam_type ORDER BY v DESC LIMIT 1",
+                        (existing['id'],)
+                    )
+                    top_type = cur.fetchone()
+                    cur.execute(
+                        "SELECT severity, COUNT(*) as v FROM report_votes WHERE report_id=%s AND severity IS NOT NULL GROUP BY severity ORDER BY v DESC LIMIT 1",
+                        (existing['id'],)
+                    )
+                    top_sev = cur.fetchone()
 
-                    # Count severity votes
-                    cursor.execute("""
-                        SELECT severity, COUNT(*) as votes
-                        FROM report_votes
-                        WHERE report_id = %s AND severity IS NOT NULL
-                        GROUP BY severity ORDER BY votes DESC LIMIT 1
-                    """, (existing['id'],))
-                    top_sev = cursor.fetchone()
-
-                # Consensus threshold: majority of votes (>50%)
-                total_votes = count  # report_count includes original
-                if top_type and top_type['votes'] > total_votes / 2:
-                    consensus_type = top_type['scam_type']
-                if top_sev and top_sev['votes'] > total_votes / 2:
-                    consensus_severity = top_sev['severity']
-
-                # Apply consensus if reached
-                updates = []
-                vals    = []
-                if consensus_type:
-                    updates.append('scam_type = %s')
-                    vals.append(consensus_type)
-                    print(f'[consensus] scam_type → {consensus_type} ({top_type["votes"]}/{total_votes} votes)')
-                if consensus_severity:
-                    updates.append('severity = %s')
-                    vals.append(consensus_severity)
-                    print(f'[consensus] severity → {consensus_severity} ({top_sev["votes"]}/{total_votes} votes)')
+                updates, vals = [], []
+                if top_type and top_type['v'] > count / 2:
+                    updates.append('scam_type=%s'); vals.append(top_type['scam_type'])
+                    print(f'[consensus] scam_type={top_type["scam_type"]} ({top_type["v"]}/{count})')
+                if top_sev and top_sev['v'] > count / 2:
+                    updates.append('severity=%s'); vals.append(top_sev['severity'])
+                    print(f'[consensus] severity={top_sev["severity"]} ({top_sev["v"]}/{count})')
                 if updates:
                     vals.append(existing['id'])
-                    with conn.cursor() as cursor:
-                        cursor.execute(
-                            f'UPDATE reports SET {", ".join(updates)} WHERE id = %s',
-                            vals
-                        )
-                    conn.commit()
+                    with c4.cursor() as cur:
+                        cur.execute(f'UPDATE reports SET {", ".join(updates)} WHERE id=%s', vals)
+                    c4.commit()
             except Exception as e:
-                print(f'[consensus] Error: {e}')
+                print(f'[consensus] {e}')
 
+            # ── Always return 200 — report was recorded ───────────────────
             return jsonify({
-                'message':        promotion_msg or f'Thank you. Your report has been recorded.',
-                'duplicate':      True,
-                'status':         existing['status'],
-                'report_id':      existing['id'],
-                'report_count':   count,
-                'promoted':       bool(promotion_tier),
-                'promotion_tier': promotion_tier,
+                'message':      'Thank you. Your report has been recorded.',
+                'duplicate':    True,
+                'status':       current_status,
+                'report_id':    existing['id'],
+                'report_count': count,
+                'promoted':     False,
+                'promotion_tier': '',
             }), 200
 
         with conn.cursor() as cursor:

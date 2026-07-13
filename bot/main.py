@@ -281,36 +281,65 @@ async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User sent something to check — run check and return result."""
     from commands import check_single_indicator_sync, format_check_result, normalize_url
 
-    raw = update.message.text.strip()
+    raw = (update.message.text or '').strip()
+
+    # Ignore menu button presses — they restart the conversation
+    if raw in ('🔍 Check', '📢 Report', '📋 Latest', '🔎 Search',
+               '📊 Status', '📖 History', 'ℹ️ About', '❓ Help'):
+        return WAITING_FOR_CHECK_URL
+
     if not raw:
+        await update.message.reply_text("Please send a URL, phone number or email to check.")
         return WAITING_FOR_CHECK_URL
 
     indicator = normalize_url(raw)
 
-    await update.message.reply_text(
+    # Show "checking" message
+    checking_msg = await update.message.reply_text(
         f"🔍 Checking `{indicator}`...",
         parse_mode='Markdown'
     )
 
-    result = check_single_indicator_sync(indicator)
-    text   = format_check_result(indicator, result)
+    try:
+        result = check_single_indicator_sync(indicator)
+        text   = format_check_result(indicator, result)
 
-    # Add "check another" prompt
-    keyboard = [
-        [
-            InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
-            InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
-        ],
-        [
-            InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
-        ],
-    ]
+        keyboard = [
+            [
+                InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+                InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
+            ],
+            [
+                InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
+            ],
+        ]
 
-    await update.message.reply_text(
-        text,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        # Delete the "Checking..." message and send result
+        try:
+            await checking_msg.delete()
+        except Exception:
+            pass
+
+        await update.message.reply_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    except Exception as e:
+        # Never leave user stuck — always end the conversation
+        try:
+            await checking_msg.delete()
+        except Exception:
+            pass
+        await update.message.reply_text(
+            f"❌ *Something went wrong*\n{DIVIDER}\n"
+            f"Could not complete the check. Please try again.\n\n"
+            f"Make sure the backend is running:\n`python backend/app.py`",
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+
     return ConversationHandler.END
 
 
@@ -318,11 +347,13 @@ async def check_another_callback(update: Update, context: ContextTypes.DEFAULT_T
     """User tapped Check Another — restart check flow."""
     query = update.callback_query
     await query.answer()
+    await query.edit_message_reply_markup(reply_markup=None)
     from telegram import ForceReply
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=f"🔍 *Check Another*\n{DIVIDER}\n\n"
-             f"Send me the URL, phone, or email to check:",
+             f"Send me the URL, phone, or email to check:\n\n"
+             f"_Just paste it — no /check command needed!_",
         parse_mode='Markdown',
         reply_markup=ForceReply(selective=True, input_field_placeholder="Paste URL, phone or email here...")
     )

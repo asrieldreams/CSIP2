@@ -106,11 +106,17 @@ def check_single_indicator_sync(indicator: str) -> dict:
         response = requests.get(
             f'{CSIP2_API_BASE}/check',
             params={'url': indicator},
-            timeout=5
+            timeout=6      # 6 second hard timeout
         )
-        return response.json()
-    except requests.exceptions.RequestException:
-        return {'status': 'error', 'message': 'Could not reach server.'}
+        if response.status_code == 200:
+            return response.json()
+        return {'status': 'error', 'message': f'Server returned {response.status_code}'}
+    except requests.exceptions.Timeout:
+        return {'status': 'error', 'message': 'Request timed out. Is the backend running?'}
+    except requests.exceptions.ConnectionError:
+        return {'status': 'error', 'message': 'Could not connect to backend. Start with: python backend/app.py'}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
 
 
 def format_check_result(indicator: str, result: dict) -> str:
