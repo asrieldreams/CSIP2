@@ -22,6 +22,44 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(compat_bp)
 
 
+def extract_domain(url: str) -> str:
+    """Extract just the bare domain from a URL for fuzzy matching."""
+    import re as _re
+    url = url.strip().lower()
+    url = _re.sub(r'^https?://', '', url)   # strip protocol
+    url = _re.sub(r'^www\.', '', url)       # strip www.
+    url = url.split('/')[0]                  # strip path
+    url = url.split(':')[0]                  # strip port
+    url = url.split('?')[0]                  # strip query
+    return url
+
+
+def is_domain_match(checked_url: str, stored_url: str) -> bool:
+    """
+    True if the stored URL's domain is a PARENT of the checked URL's domain.
+    Examples:
+      stored=tp.edu.sg, checked=app.tp.edu.sg  → True  (subdomain match)
+      stored=tp.edu.sg, checked=tp.edu.sg/page → True  (path match)
+      stored=app.tp.edu.sg, checked=tp.edu.sg  → False (don't escalate up)
+    """
+    c_domain = extract_domain(checked_url)
+    s_domain = extract_domain(stored_url)
+
+    if not c_domain or not s_domain:
+        return False
+
+    # Exact domain match (different paths)
+    if c_domain == s_domain:
+        return True
+
+    # Checked URL is a subdomain of stored domain
+    # app.tp.edu.sg ends with .tp.edu.sg
+    if c_domain.endswith('.' + s_domain):
+        return True
+
+    return False
+
+
 def normalize_indicator(indicator: str) -> str:
     indicator = indicator.strip()
     # Normalize phone numbers
@@ -303,6 +341,64 @@ def check_indicator():
             """, variants)
             row = cursor.fetchone()
 
+        # ── Domain fuzzy matching (SQL-based) ─────────────────────────
+        # Generate parent domain candidates from checked URL and query DB
+        # e.g. dab.ding.com → check if ding.com is blacklisted
+        if not row:
+            try:
+                checked_domain = extract_domain(normalized)
+                parts = checked_domain.split('.')
+                # Build parent domain list (strip labels from left)
+                # dab.ding.com → [ding.com]  (skip single-part like 'com')
+                parent_domains = []
+                for i in range(1, len(parts) - 1):  # skip last part (tld alone)
+                    parent_domains.append('.'.join(parts[i:]))
+
+                # ── Also check domain-only (same domain, different path) ──
+                # e.g. DB has nyp.edu.sg, checking nyp.edu.sg/main → MATCH
+                domain_only_variants = []
+                for proto in ('http://', 'https://'):
+                    for prefix in ('', 'www.'):
+                        domain_only_variants.append(proto + prefix + checked_domain)
+                        domain_only_variants.append(proto + prefix + checked_domain + '/')
+
+                # Combine: domain-only first, then parent domains
+                all_variants = domain_only_variants
+                if parent_domains:
+                    # Generate http/https × www/no-www variants for each parent
+                    for pd in parent_domains:
+                        for proto in ('http://', 'https://'):
+                            for prefix in ('', 'www.'):
+                                all_variants.append(proto + prefix + pd)
+                                all_variants.append(proto + prefix + pd + '/')
+
+                if all_variants:
+                    parent_variants = all_variants
+
+                    placeholders = ','.join(['%s'] * len(parent_variants))
+                    with conn.cursor() as cursor:
+                        cursor.execute(f"""
+                            SELECT id, list_type, scam_type, description,
+                                   severity, indicator,
+                                   COALESCE(report_count, 1) as report_count
+                            FROM reports
+                            WHERE indicator IN ({placeholders})
+                              AND status = 'approved'
+                            LIMIT 1
+                        """, parent_variants)
+                        fuzzy_row = cursor.fetchone()
+
+                    if fuzzy_row:
+                        row = dict(fuzzy_row)
+                        row['fuzzy_match']    = True
+                        row['matched_domain'] = extract_domain(fuzzy_row['indicator'])
+                        print(f'[fuzzy] HIT: {checked_domain} → {row["matched_domain"]}')
+                    else:
+                        print(f'[fuzzy] MISS: {checked_domain} parents={parent_domains}')
+            except Exception as e:
+                print(f'[fuzzy] Error: {e}')
+
+
         if not row:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -317,18 +413,30 @@ def check_indicator():
                             'message': 'No reports found.'}), 200
 
         if row['list_type'] == 'blacklist':
+            desc = row.get('description') or ''
+            if row.get('fuzzy_match'):
+                desc = f"Domain match: {row.get('matched_domain')} is blacklisted. {desc}".strip()
             return jsonify({'status': 'blacklist', 'report_id': row['id'],
-                            'indicator': indicator, 'scam_type': row['scam_type'],
-                            'description': row['description'],
+                            'indicator': indicator,
+                            'matched_indicator': row.get('indicator', indicator),
+                            'scam_type': row.get('scam_type', 'Unknown'),
+                            'description': desc,
                             'severity': row.get('severity') or 'high',
                             'report_count': row.get('report_count', 1),
+                            'fuzzy_match': row.get('fuzzy_match', False),
                             'message': 'WARNING: Confirmed scam. Do not proceed.'}), 200
         elif row['list_type'] == 'whitelist':
+            desc = row.get('description') or ''
+            if row.get('fuzzy_match'):
+                desc = f"Domain match: {row.get('matched_domain')} is suspected. {desc}".strip()
             return jsonify({'status': 'whitelist', 'report_id': row['id'],
-                            'indicator': indicator, 'scam_type': row['scam_type'],
-                            'description': row['description'],
+                            'indicator': indicator,
+                            'matched_indicator': row.get('indicator', indicator),
+                            'scam_type': row.get('scam_type', 'Unknown'),
+                            'description': desc,
                             'severity': row.get('severity') or 'medium',
                             'report_count': row.get('report_count', 1),
+                            'fuzzy_match': row.get('fuzzy_match', False),
                             'message': 'CAUTION: Flagged. Proceed with care.'}), 200
         else:
             return jsonify({'status': 'flagged', 'indicator': indicator,

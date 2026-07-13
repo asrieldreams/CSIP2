@@ -128,10 +128,13 @@ def format_check_result(indicator: str, result: dict) -> str:
         count    = result.get('report_count', 1)
         severity = (result.get('severity') or 'high').capitalize()
         sev_icon = {'High': '🔴', 'Medium': '🟡', 'Low': '🟢'}.get(severity, '🔴')
+        fuzzy    = result.get('fuzzy_match', False)
+        matched  = result.get('matched_domain', '')
+        fuzzy_note = f"\n🔗 *Domain match:* `{matched}` is blacklisted" if fuzzy else ''
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
-            f"🔗 `{indicator}`\n\n"
+            f"🔗 `{indicator}`{fuzzy_note}\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
             f"{sev_icon} *Severity:* {severity}\n"
             f"📝 *Details:* {description if description else 'No details available'}\n"
