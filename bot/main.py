@@ -83,46 +83,102 @@ async def scan_qr_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
         np_arr     = np.frombuffer(bytes(file_bytes), np.uint8)
         image      = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # Use OpenCV QR detector
-        detector  = cv2.QRCodeDetector()
-        data, bbox, _ = detector.detectAndDecode(image)
+        if image is None:
+            await update.message.reply_text(
+                f"❌ *Could not read image*\n{DIVIDER}\n"
+                f"The file could not be opened. Try sending as a photo not a file.",
+                parse_mode='Markdown', reply_markup=get_main_menu()
+            )
+            return
+
+        # Try multiple detection strategies for best results
+        data = None
+
+        # Strategy 1: Standard detector on original image
+        try:
+            detector = cv2.QRCodeDetector()
+            d, _, _ = detector.detectAndDecode(image)
+            if d: data = d
+        except Exception:
+            pass
+
+        # Strategy 2: Grayscale (often improves detection)
+        if not data:
+            try:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                d, _, _ = detector.detectAndDecode(gray)
+                if d: data = d
+            except Exception:
+                pass
+
+        # Strategy 3: Upscale small images (phone screenshots of QR codes)
+        if not data:
+            try:
+                h, w = image.shape[:2]
+                if max(h, w) < 800:
+                    scale  = 800 / max(h, w)
+                    big    = cv2.resize(image, (int(w*scale), int(h*scale)))
+                    d, _, _ = detector.detectAndDecode(big)
+                    if d: data = d
+            except Exception:
+                pass
+
+        # Strategy 4: Enhance contrast then try again
+        if not data:
+            try:
+                gray    = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                d, _, _ = detector.detectAndDecode(thresh)
+                if d: data = d
+            except Exception:
+                pass
 
         if not data:
             await update.message.reply_text(
                 f"❌ *No QR Code Found*\n{DIVIDER}\n\n"
-                f"Could not detect a QR code in this image.\n"
-                f"Try a clearer photo with better lighting.\n\n"
-                f"💡 You can also type `/check http://url.com` directly",
+                f"Could not detect a QR code. Tips:\n"
+                f"📸 Take a clearer, well-lit photo\n"
+                f"📐 Make sure the full QR code is visible\n"
+                f"🔍 Try getting closer to the QR code\n\n"
+                f"💡 Or just use 🔍 *Check* and paste the URL directly",
                 parse_mode='Markdown',
                 reply_markup=get_main_menu()
             )
             return
 
         qr_data = data.strip()
+        print(f"[QR] Decoded: {qr_data[:80]}")
 
-        if qr_data.startswith('http://') or qr_data.startswith('https://'):
-            result     = check_single_indicator_sync(qr_data)
-            result_msg = format_check_result(qr_data, result)
+        # Normalize and check the URL
+        from commands import normalize_url
+        if qr_data.startswith('http://') or qr_data.startswith('https://') or '.' in qr_data:
+            normalized = normalize_url(qr_data)
+            result     = check_single_indicator_sync(normalized)
+            result_msg = format_check_result(normalized, result)
+            keyboard   = [[
+                InlineKeyboardButton("📢 Report This",  callback_data='report_from_check'),
+                InlineKeyboardButton("🏠 Back to Menu", callback_data='check_back_menu'),
+            ]]
         else:
             result_msg = (
-                f"📄 *QR Content:*\n"
-                f"└ `{qr_data[:100]}`\n"
-                f"└ Not a URL — no scam check needed"
+                f"📄 *QR Content Decoded*\n{DIVIDER}\n"
+                f"`{qr_data[:200]}`\n\n"
+                f"This QR code doesn't contain a URL."
             )
+            keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data='check_back_menu')]]
 
         await update.message.reply_text(
-            f"📷 *QR Code Scan Complete*\n{DIVIDER}\n"
-            f"Found *1* QR code\n\n"
-            + result_msg,
+            f"📷 *QR Code Scanned*\n{DIVIDER}\n\n" + result_msg,
             parse_mode='Markdown',
-            reply_markup=get_main_menu()
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
     except Exception as e:
+        print(f"[QR] Error: {e}")
         await update.message.reply_text(
             f"⚠️ *Scan Failed*\n{DIVIDER}\n"
-            f"Could not process this image.\n"
-            f"Try sending a clearer photo.",
+            f"Error: {str(e)[:100]}\n\n"
+            f"Try sending a clearer photo, or use 🔍 *Check* and paste the URL directly.",
             parse_mode='Markdown',
             reply_markup=get_main_menu()
         )
@@ -888,6 +944,8 @@ def main():
         entry_points=[
             CommandHandler('check', check_start),
             MessageHandler(filters.Regex(r'^🔍 Check$'), check_start),
+            # ← "Check Another" button re-enters here
+            CallbackQueryHandler(check_another_callback, pattern='^check_another$'),
         ],
         states={
             WAITING_FOR_CHECK_URL: [
@@ -961,9 +1019,7 @@ def main():
         handle_forwarded_action, pattern='^fwd:(check|dismiss)$'
     ))
     # Check result inline buttons
-    app.add_handler(CallbackQueryHandler(
-        check_another_callback, pattern='^check_another$'
-    ))
+    # check_another handled inside check_conv entry_points
     app.add_handler(CallbackQueryHandler(
         report_from_check_callback, pattern='^report_from_check$'
     ))

@@ -154,6 +154,28 @@ def format_check_result(indicator: str, result: dict) -> str:
             f"⚠️ Exercise caution — not yet fully confirmed"
         )
 
+    elif status == 'error':
+        msg = result.get('message', 'Could not reach the backend')
+        return (
+            f"❌ *Check Failed*\n"
+            f"{DIVIDER}\n"
+            f"🔗 `{indicator}`\n\n"
+            f"{msg}\n\n"
+            f"Make sure the backend is running:\n"
+            f"`python backend/app.py`"
+        )
+
+    else:
+        # clean — not in database
+        return (
+            f"✅ *Not Found in Database*\n"
+            f"{DIVIDER}\n"
+            f"🔗 `{indicator}`\n\n"
+            f"No match found in the CSIP2 scam database.\n\n"
+            f"💡 Always stay cautious online. If you think this\n"
+            f"is a scam, use 📢 *Report* to submit it."
+        )
+
 
 # ── Submit Report ──────────────────────────────────────────
 
