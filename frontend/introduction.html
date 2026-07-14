@@ -1249,6 +1249,7 @@ body, nav, .page-header, .scam-card, .card,
 }
 
 </style>
+  <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
 
@@ -2031,68 +2032,7 @@ document.addEventListener('DOMContentLoaded', updateToggleBtn);
 </script>
 
 
-<script>
-// ── Mobile hamburger menu ────────────────────────────────
-function initMobileMenu() {
-  // Create hamburger button
-  const ham = document.createElement('button');
-  ham.className = 'hamburger';
-  ham.setAttribute('aria-label', 'Toggle menu');
-  ham.innerHTML = '<span></span><span></span><span></span>';
 
-  // Create mobile menu drawer
-  const drawer = document.createElement('div');
-  drawer.className = 'mobile-menu';
-  drawer.id = 'mobile-menu';
-
-  // Copy nav links into drawer
-  const navLinks = document.querySelector('.nav-links');
-  if (navLinks) {
-    navLinks.querySelectorAll('a').forEach(link => {
-      const a = link.cloneNode(true);
-      a.addEventListener('click', () => {
-        drawer.classList.remove('open');
-      });
-      drawer.appendChild(a);
-    });
-  }
-
-  // Add report link if not present
-  if (!drawer.querySelector('[href*="report"]')) {
-    const reportLink = document.createElement('a');
-    reportLink.href = 'reportscam.html';
-    reportLink.textContent = '📢 Report a Scam';
-    reportLink.style.cssText = 'font-weight:600;color:var(--accent)';
-    drawer.appendChild(reportLink);
-  }
-
-  // Toggle
-  ham.addEventListener('click', () => {
-    drawer.classList.toggle('open');
-  });
-
-  // Close on outside click
-  document.addEventListener('click', (e) => {
-    if (!ham.contains(e.target) && !drawer.contains(e.target)) {
-      drawer.classList.remove('open');
-    }
-  });
-
-  // Insert into nav
-  const nav = document.querySelector('nav');
-  if (nav) {
-    nav.appendChild(ham);
-    nav.parentNode.insertBefore(drawer, nav.nextSibling);
-  }
-}
-
-// Initialise on load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initMobileMenu);
-} else {
-  initMobileMenu();
-}
-</script>
-
+  <script src="mobile-app.js"></script>
 </body>
 </html>
