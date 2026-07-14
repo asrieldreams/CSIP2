@@ -111,8 +111,12 @@ def submit_report():
             existing = cursor.fetchone()
 
         if existing and existing['status'] in ('approved', 'pending'):
-            # ── Step 1: Increment report count (fresh connection) ──────
-            count = 1
+            import threading
+
+            # ── Step 1: Increment report count immediately ──────────────
+            count          = 1
+            current_list   = existing.get('list_type', '')
+            current_status = existing['status']
             try:
                 c1 = get_connection()
                 with c1.cursor() as cur:
@@ -128,83 +132,96 @@ def submit_report():
                     )
                     row = cur.fetchone()
                     if row:
-                        count        = row['report_count'] or 1
-                        current_list = row['list_type'] or ''
+                        count          = row['report_count'] or 1
+                        current_list   = row['list_type'] or ''
                         current_status = row['status']
             except Exception as e:
                 print(f'[report_count] {e}')
-                current_list   = existing.get('list_type', '')
-                current_status = existing['status']
 
-            # ── Step 2: Crowdsource promotion (fresh connection) ─────────
-            # Ceiling = SUSPECTED — community cannot auto-blacklist
-            try:
-                c2 = get_connection()
-                if count >= 3 and current_status == 'pending':
-                    with c2.cursor() as cur:
-                        cur.execute(
-                            "UPDATE reports SET status='approved', list_type='whitelist' WHERE id=%s",
-                            (existing['id'],)
-                        )
-                    c2.commit()
-                    print(f'[crowdsource] AUTO-SUSPECT id={existing["id"]} count={count}')
-                elif count >= 5 and current_status == 'approved' and current_list == 'whitelist':
-                    print(f'[crowdsource] Ceiling id={existing["id"]} count={count} — admin needed')
-            except Exception as e:
-                print(f'[crowdsource] {e}')
-
-            # ── Step 3: Record vote (fresh connection) ────────────────────
-            try:
-                c3 = get_connection()
-                with c3.cursor() as cur:
-                    cur.execute(
-                        "INSERT INTO report_votes (report_id, scam_type, severity, source, ip_address) VALUES (%s,%s,%s,%s,%s)",
-                        (existing['id'], data.get('scam_type',''), data.get('severity',''), data.get('source','unknown'), request.remote_addr)
-                    )
-                c3.commit()
-            except Exception as e:
-                print(f'[votes] {e}')
-
-            # ── Step 4: Consensus check (fresh connection) ────────────────
-            try:
-                c4 = get_connection()
-                with c4.cursor() as cur:
-                    cur.execute(
-                        "SELECT scam_type, COUNT(*) as v FROM report_votes WHERE report_id=%s AND scam_type IS NOT NULL GROUP BY scam_type ORDER BY v DESC LIMIT 1",
-                        (existing['id'],)
-                    )
-                    top_type = cur.fetchone()
-                    cur.execute(
-                        "SELECT severity, COUNT(*) as v FROM report_votes WHERE report_id=%s AND severity IS NOT NULL GROUP BY severity ORDER BY v DESC LIMIT 1",
-                        (existing['id'],)
-                    )
-                    top_sev = cur.fetchone()
-
-                updates, vals = [], []
-                if top_type and top_type['v'] > count / 2:
-                    updates.append('scam_type=%s'); vals.append(top_type['scam_type'])
-                    print(f'[consensus] scam_type={top_type["scam_type"]} ({top_type["v"]}/{count})')
-                if top_sev and top_sev['v'] > count / 2:
-                    updates.append('severity=%s'); vals.append(top_sev['severity'])
-                    print(f'[consensus] severity={top_sev["severity"]} ({top_sev["v"]}/{count})')
-                if updates:
-                    vals.append(existing['id'])
-                    with c4.cursor() as cur:
-                        cur.execute(f'UPDATE reports SET {", ".join(updates)} WHERE id=%s', vals)
-                    c4.commit()
-            except Exception as e:
-                print(f'[consensus] {e}')
-
-            # ── Always return 200 — report was recorded ───────────────────
-            return jsonify({
-                'message':      'Thank you. Your report has been recorded.',
-                'duplicate':    True,
-                'status':       current_status,
-                'report_id':    existing['id'],
-                'report_count': count,
-                'promoted':     False,
+            # ── Step 2: Return response IMMEDIATELY ─────────────────────
+            # Background thread handles promotion, vote, consensus
+            # This prevents timeout errors on slow Aiven connections
+            response_data = {
+                'message':        'Thank you. Your report has been recorded.',
+                'duplicate':      True,
+                'status':         current_status,
+                'report_id':      existing['id'],
+                'report_count':   count,
+                'promoted':       False,
                 'promotion_tier': '',
-            }), 200
+            }
+
+            def background_work(report_id, count, current_status, current_list,
+                                 scam_type, severity, source, ip):
+                """Run promotion + vote + consensus after response is sent."""
+                try:
+                    # Promotion check
+                    c2 = get_connection()
+                    if count >= 3 and current_status == 'pending':
+                        with c2.cursor() as cur:
+                            cur.execute(
+                                "UPDATE reports SET status='approved',list_type='whitelist' WHERE id=%s",
+                                (report_id,)
+                            )
+                        c2.commit()
+                        print(f'[bg] AUTO-SUSPECT id={report_id} count={count}')
+                except Exception as e:
+                    print(f'[bg:promotion] {e}')
+
+                try:
+                    # Record vote
+                    c3 = get_connection()
+                    with c3.cursor() as cur:
+                        cur.execute(
+                            "INSERT INTO report_votes (report_id,scam_type,severity,source,ip_address) VALUES (%s,%s,%s,%s,%s)",
+                            (report_id, scam_type, severity, source, ip)
+                        )
+                    c3.commit()
+                except Exception as e:
+                    print(f'[bg:vote] {e}')
+
+                try:
+                    # Consensus check
+                    c4 = get_connection()
+                    with c4.cursor() as cur:
+                        cur.execute(
+                            "SELECT scam_type,COUNT(*) as v FROM report_votes WHERE report_id=%s AND scam_type IS NOT NULL GROUP BY scam_type ORDER BY v DESC LIMIT 1",
+                            (report_id,)
+                        )
+                        top_t = cur.fetchone()
+                        cur.execute(
+                            "SELECT severity,COUNT(*) as v FROM report_votes WHERE report_id=%s AND severity IS NOT NULL GROUP BY severity ORDER BY v DESC LIMIT 1",
+                            (report_id,)
+                        )
+                        top_s = cur.fetchone()
+                    updates, vals = [], []
+                    if top_t and top_t['v'] > count / 2:
+                        updates.append('scam_type=%s'); vals.append(top_t['scam_type'])
+                    if top_s and top_s['v'] > count / 2:
+                        updates.append('severity=%s'); vals.append(top_s['severity'])
+                    if updates:
+                        vals.append(report_id)
+                        with c4.cursor() as cur:
+                            cur.execute(f'UPDATE reports SET {", ".join(updates)} WHERE id=%s', vals)
+                        c4.commit()
+                        print(f'[bg:consensus] {updates} for id={report_id}')
+                except Exception as e:
+                    print(f'[bg:consensus] {e}')
+
+            # Fire background thread — non-blocking
+            t = threading.Thread(
+                target=background_work,
+                args=(
+                    existing['id'], count, current_status, current_list,
+                    data.get('scam_type',''), data.get('severity','medium'),
+                    data.get('source','unknown'), request.remote_addr
+                ),
+                daemon=True
+            )
+            t.start()
+
+            return jsonify(response_data), 200
+
 
         with conn.cursor() as cursor:
             try:
@@ -402,12 +419,14 @@ def check_indicator():
         if not row:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id FROM reports WHERE indicator = %s AND status = 'pending' LIMIT 1",
+                    "SELECT id, scam_type, COALESCE(report_count,1) as report_count FROM reports WHERE indicator = %s AND status = 'pending' LIMIT 1",
                     (normalized,)
                 )
                 pending = cursor.fetchone()
             if pending:
                 return jsonify({'status': 'pending', 'indicator': indicator,
+                                'scam_type':    pending.get('scam_type', 'Unknown'),
+                                'report_count': pending.get('report_count', 1),
                                 'message': 'This indicator is pending admin review.'}), 200
             return jsonify({'status': 'clean', 'indicator': indicator,
                             'message': 'No reports found.'}), 200

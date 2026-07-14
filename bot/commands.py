@@ -198,73 +198,76 @@ async def submit_report_to_new_api(update, context):
         'platform':       context.user_data.get('platform', 'Telegram'),
     }
 
+    # ── Step 1: Quick check to get current DB status (fast GET) ────────
+    current_status = 'new'
+    db_count       = 0
+    tier_line      = ''
+
     try:
-        response = requests.post(
-            f'{CSIP2_API_BASE}/report',
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=5
+        check_result = check_single_indicator_sync(indicator)
+        status = check_result.get('status', 'clean')
+        db_count = int(check_result.get('report_count', 0))
+
+        if status == 'blacklist':
+            tier_line      = '🔴 This indicator is on our *confirmed scam watchlist*.'
+            current_status = 'blacklist'
+        elif status == 'whitelist':
+            tier_line      = '⚠️ This indicator has been *flagged as suspicious* by our community.'
+            current_status = 'whitelist'
+        elif status == 'pending':
+            tier_line      = '🔍 This indicator is currently *under community review*.'
+            current_status = 'pending'
+    except Exception as e:
+        print(f'[check_before_report] {e}')
+
+    # ── Step 2: Show appropriate message immediately ──────────────────
+    import threading
+    if current_status == 'new' or not tier_line:
+        # Brand new report — first person to report this
+        msg_text = (
+            f"✅ *Report Submitted Successfully!*\n"
+            f"{DIVIDER}\n"
+            f"📌 *Indicator:* `{indicator}`\n"
+            f"🏷️ *Type:* {scam_type}\n\n"
+            f"🥇 You're the *first* to report this indicator!\n"
+            f"⏳ Our admin team will review it shortly\n"
+            f"🇸🇬 Thank you for helping keep Singapore safe!\n\n"
+            f"💡 Use 📖 *History* to track your reports"
         )
-        data = response.json()
+    else:
+        total = db_count + 1  # include current reporter
+        count_line = f"\n👥 *{total}* {'person has' if total == 1 else 'people have'} now reported this."
 
-        if response.status_code == 201:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"✅ *Report Submitted Successfully!*\n"
-                     f"{DIVIDER}\n"
-                     f"📌 *Indicator:* `{indicator}`\n"
-                     f"🏷️ *Type:* {scam_type}\n\n"
-                     f"⏳ Our admin team will review it shortly\n"
-                     f"🇸🇬 Thank you for helping keep Singapore safe!\n\n"
-                     f"💡 Use 📖 *History* to track your reports",
-                parse_mode='Markdown',
-                reply_markup=get_main_menu()
-            )
-        elif data.get('duplicate'):
-            dup_status     = data.get('status', 'pending')
-            count          = int(data.get('report_count', 1))
-            promotion_tier = data.get('promotion_tier', '')
-
-            # Status label based on current tier — no internal logic exposed
-            if promotion_tier == 'blacklist' or (dup_status == 'approved'):
-                status_line = '🔴 This indicator is on our *confirmed scam watchlist*.'
-            elif promotion_tier == 'whitelist':
-                status_line = '⚠️ This indicator has been *flagged as suspicious* by our community.'
-            else:
-                status_line = '🔍 This indicator is currently *under community review*.'
-
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"✅ *Thank you for your report!*\n"
-                     f"{DIVIDER}\n"
-                     f"Your report has been recorded.\n\n"
-                     f"📌 `{indicator}`\n"
-                     f"{status_line}\n"
-                     f"👥 *{count}* {'person has' if count==1 else 'people have'} reported this.\n\n"
-                     f"Every report helps protect the community. 🛡️",
-                parse_mode='Markdown',
-                reply_markup=get_main_menu()
-            )
-        else:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"❌ *Submission Failed*\n"
-                     f"{DIVIDER}\n"
-                     f"{data.get('error', 'Please try again later.')}",
-                parse_mode='Markdown',
-                reply_markup=get_main_menu()
-            )
-
-    except requests.exceptions.RequestException:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"❌ *Connection Error*\n"
-                 f"{DIVIDER}\n"
-                 f"Could not reach the server\n"
-                 f"Please try again later",
-            parse_mode='Markdown',
-            reply_markup=get_main_menu()
+        msg_text = (
+            f"✅ *Thank you for your report!*\n"
+            f"{DIVIDER}\n"
+            f"Your report has been recorded.\n\n"
+            f"📌 `{indicator}`\n"
+            f"{tier_line}"
+            f"{count_line}\n\n"
+            f"Every report helps protect the community. 🛡️"
         )
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=msg_text,
+        parse_mode='Markdown',
+        reply_markup=get_main_menu()
+    )
+
+    # ── Step 3: Fire POST /report in background ───────────────────────
+    def send_to_backend():
+        try:
+            requests.post(
+                f'{CSIP2_API_BASE}/report',
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=30
+            )
+        except Exception as e:
+            print(f'[report:bg] {e}')
+
+    threading.Thread(target=send_to_backend, daemon=True).start()
 
     context.user_data.clear()
 

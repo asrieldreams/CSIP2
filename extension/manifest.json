@@ -26,6 +26,12 @@
     "default_popup": "popup.html"
   },
 
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js":      ["content.js"],
+    "run_at":  "document_end"
+  }],
+
   "web_accessible_resources": [{
     "resources": ["warning.html"],
     "matches":   ["<all_urls>"]
