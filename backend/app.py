@@ -105,11 +105,12 @@ def submit_report():
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT id, status FROM reports WHERE indicator = %s LIMIT 1",
+                "SELECT id, status FROM reports WHERE indicator = %s AND status != 'rejected' LIMIT 1",
                 (indicator,)
             )
             existing = cursor.fetchone()
 
+        # Only treat as duplicate if report is active (not rejected/removed)
         if existing and existing['status'] in ('approved', 'pending'):
             import threading
 
@@ -121,7 +122,7 @@ def submit_report():
                 c1 = get_connection()
                 with c1.cursor() as cur:
                     cur.execute(
-                        "UPDATE reports SET report_count = COALESCE(report_count,1)+1 WHERE id=%s",
+                        "UPDATE reports SET report_count = COALESCE(report_count,1)+1, last_reported_at = NOW() WHERE id=%s",
                         (existing['id'],)
                     )
                 c1.commit()
@@ -180,7 +181,18 @@ def submit_report():
                 except Exception as e:
                     print(f'[bg:vote] {e}')
 
-                try:
+                    # ── Skip consensus if admin manually reviewed ──────────
+                    try:
+                        cg = get_connection()
+                        with cg.cursor() as cur:
+                            cur.execute('SELECT admin_classified FROM reports WHERE id=%s', (report_id,))
+                            cg_row = cur.fetchone()
+                        if cg_row and cg_row.get('admin_classified'):
+                            print(f'[consensus] Skipped — admin_classified for id={report_id}')
+                            return
+                    except Exception:
+                        pass  # Column may not exist yet
+
                     # Consensus check
                     c4 = get_connection()
                     with c4.cursor() as cur:

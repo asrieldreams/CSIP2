@@ -685,40 +685,35 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <button class="modal-close" onclick="closeModal('modal-review')"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
+      <!-- Report info grid -->
       <div class="info-row" id="review-info-grid"></div>
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <textarea class="form-input" id="review-desc" rows="4"></textarea>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-        <div class="form-group">
-          <label class="form-label">Severity</label>
-          <select class="form-input" id="review-severity">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-        <div class="form-group">
+
+      <!-- Status + Severity dropdowns -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+        <div class="form-group" style="margin:0">
           <label class="form-label">Status</label>
           <select class="form-input" id="review-status">
-            <option value="pending">⏳ Pending (needs review)</option>
-            <option value="flagged">⚠️ Suspected (community flagged)</option>
-            <option value="verified">🔴 Confirmed (blacklisted)</option>
-            <option value="removed">❌ Removed (false report)</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="flagged">⚠️ Suspected</option>
+            <option value="verified">🔴 Confirmed</option>
+            <option value="removed">❌ Removed</option>
           </select>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Admin Notes <span style="font-weight:400;text-transform:none;letter-spacing:0">(internal only)</span></label>
-        <textarea class="form-input" id="review-notes" placeholder="Add internal notes about this report…"></textarea>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Severity</label>
+          <select class="form-input" id="review-severity">
+            <option value="low">🟢 Low</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="high">🔴 High</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-review')">Cancel</button>
-      <button class="btn btn-danger" onclick="actionReport('remove')">✕ Remove</button>
-      <button class="btn btn-amber"   onclick="actionReport('flag')">⚠️ Mark Suspected</button>
-      <button class="btn btn-success" onclick="actionReport('verify')">🔴 Confirm & Blacklist</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-review')">← Back</button>
+      <button class="btn btn-success" onclick="actionReport('save')" style="min-width:120px">
+        ✓ Confirm
+      </button>
     </div>
   </div>
 </div>
@@ -1018,36 +1013,79 @@ async function loadReports(page) {
 // ── QUICK ACTIONS on individual reports ──────────────────────────────────
 async function quickAction(id, action) {
     const statusMap = { verify: 'verified', remove: 'removed', flag: 'flagged' };
-    const res = await apiFetch(`/admin/reports/${id}`, {
-        method: 'PATCH',
-        body:   JSON.stringify({ status: statusMap[action] || 'removed' })
-    });
-    if (res.ok) {
-        showToast(action === 'verify' ? 'Report verified ✓' : action === 'remove' ? 'Report removed' : 'Report flagged',
-                  action === 'verify' ? 'success' : 'error');
-        loadReports();
-        loadDashboard();
+
+    // ── Optimistic update — remove row immediately ────────
+    const row = document.getElementById('row-' + id);
+    if (row) {
+        row.style.transition = 'opacity 0.2s, transform 0.2s';
+        row.style.opacity    = '0.3';
+        row.style.transform  = 'translateX(8px)';
+        setTimeout(() => row.remove(), 200);
     }
+
+    // Update badge counts immediately
+    const pendingBadge = document.getElementById('pending-badge');
+    if (pendingBadge && action !== 'flag') {
+        const cur = parseInt(pendingBadge.textContent) || 0;
+        if (cur > 0) pendingBadge.textContent = cur - 1;
+    }
+
+    const toastMsg = action === 'verify' ? 'Report confirmed ✓'
+                   : action === 'flag'   ? 'Report flagged ⚠️'
+                   : 'Report removed';
+    const toastType = action === 'verify' ? 'success' : action === 'flag' ? 'info' : 'error';
+    showToast(toastMsg, toastType);
+
+    // ── Fire API in background ────────────────────────────
+    try {
+        const res = await apiFetch(`/admin/reports/${id}`, {
+            method: 'PATCH',
+            body:   JSON.stringify({ status: statusMap[action] || 'removed' })
+        });
+        if (!res.ok) {
+            showToast('Action failed — please refresh', 'error');
+        }
+    } catch(e) {
+        showToast('Server error — please refresh', 'error');
+    }
+
+    // Reload data quietly in background
+    setTimeout(() => { loadReports(); loadDashboard(); }, 500);
 }
 
 async function actionReport(action) {
     if (!currentReportId) return;
+    // Use the dropdown values directly
     const status   = document.getElementById('review-status').value;
     const severity = document.getElementById('review-severity').value;
-    const notes    = document.getElementById('review-notes').value;
+
+    // 'save' uses whatever status/severity admin selected in dropdowns
+    const finalStatus = action === 'save' ? status : action;
+
     const res = await apiFetch(`/admin/reports/${currentReportId}`, {
         method: 'PATCH',
-        body:   JSON.stringify({
-            status:      action === 'verify' ? 'verified' : action === 'remove' ? 'removed' : status,
-            severity,
-            admin_notes: notes,
-        })
+        body:   JSON.stringify({ status: finalStatus, severity })
     });
     if (res.ok) {
-        showToast(action === 'verify' ? 'Report verified and published' : 'Report removed', 'success');
+        const statusLabels = {
+            verified: 'Confirmed ✓',
+            flagged:  'Marked Suspected ⚠️',
+            removed:  'Removed',
+            pending:  'Reverted to Pending',
+        };
+        showToast(statusLabels[finalStatus] || 'Updated', 'success');
         closeModal('modal-review');
-        loadReports();
-        loadDashboard();
+        // Remove row immediately for instant feedback
+        const row = document.getElementById('row-' + currentReportId);
+        if (row) {
+            row.style.transition = 'opacity 0.2s';
+            row.style.opacity    = '0';
+            setTimeout(() => row.remove(), 200);
+        }
+        // Reload in background
+        setTimeout(() => { loadReports(); loadDashboard(); }, 500);
+    } else {
+        showToast('Update failed — try again', 'error');
     }
 }
 
@@ -1622,10 +1660,8 @@ function openReviewModal(id){
     <div class="info-item"><div class="info-key">Submitted</div><div class="info-val">${fmtDate(r.created_at)}</div></div>
     <div class="info-item"><div class="info-key">Platform</div><div class="info-val">${r.platform||'—'}</div></div>
     ${falseBadge}`;
-  document.getElementById('review-desc').value = r.description||r.title;
-  document.getElementById('review-severity').value = r.severity;
-  document.getElementById('review-status').value = r.status;
-  document.getElementById('review-notes').value = '';
+  document.getElementById('review-severity').value = r.severity || 'medium';
+  document.getElementById('review-status').value   = r.status   || 'pending';
   openModal('modal-review');
 }
 

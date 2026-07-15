@@ -633,23 +633,95 @@ def api_admin_patch_report(report_id):
     data   = request.get_json(silent=True) or {}
     status = data.get('status', 'verified')
 
-    # Tier map — controls what DB values to set
     action_map = {
-        'verified': ('approved', 'blacklist', 'high'),    # Confirmed
-        'flagged':  ('approved', 'whitelist', 'medium'),  # Suspected
-        'pending':  ('pending',  None,        None),      # Back to pending
-        'removed':  ('rejected', None,        None),      # Removed
+        'verified': ('approved', 'blacklist'),
+        'flagged':  ('approved', 'whitelist'),
+        'pending':  ('pending',  None),
+        'removed':  ('rejected', None),
     }
-    new_status, list_type, severity = action_map.get(status, ('rejected', None, None))
+    new_status, list_type = action_map.get(status, ('rejected', None))
+
+    # Use admin's chosen severity — NEVER override with hardcoded value
+    severity = data.get('severity') or None
+
+    current_admin = get_current_admin()
 
     try:
         conn = get_connection()
+
         with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE reports SET status = %s, list_type = %s, severity = %s
-                WHERE id = %s
-            """, (new_status, list_type, severity, report_id))
+            cursor.execute(
+                "SELECT indicator, scam_type FROM reports WHERE id = %s",
+                (report_id,)
+            )
+            rpt = cursor.fetchone()
+
+        # Build update — only set severity if admin explicitly chose one
+        with conn.cursor() as cursor:
+            if severity:
+                cursor.execute(
+                    "UPDATE reports SET status=%s, list_type=%s, severity=%s WHERE id=%s",
+                    (new_status, list_type, severity, report_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE reports SET status=%s, list_type=%s WHERE id=%s",
+                    (new_status, list_type, report_id)
+                )
         conn.commit()
+
+        # Set admin_locked + admin_classified to protect from community override
+        try:
+            admin_locked = 1 if status == 'verified' else 0
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE reports SET admin_locked=%s, admin_classified=1, false_report_count=0 WHERE id=%s",
+                    (admin_locked, report_id)
+                )
+            conn.commit()
+        except Exception:
+            pass
+
+        # If removed/rejected → reset report_count and clear votes
+        # Count should only reflect valid community reports, not rejected ones
+        if status == 'removed':
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET report_count = 0 WHERE id = %s",
+                        (report_id,)
+                    )
+                conn.commit()
+                # Clear all votes for this report
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM report_votes WHERE report_id = %s",
+                        (report_id,)
+                    )
+                conn.commit()
+                print(f'[admin] Cleared report_count and votes for rejected report {report_id}')
+            except Exception as e:
+                print(f'[admin] Count reset error: {e}')
+
+        action_label = {
+            'verified': 'Verified',
+            'flagged':  'Flagged',
+            'removed':  'Removed',
+            'pending':  'Reverted to Pending',
+        }.get(status, 'Updated')
+
+        try:
+            log_audit(
+                action      = action_label,
+                target      = f"SS-{str(report_id).zfill(5)}",
+                target_id   = report_id,
+                target_type = 'report',
+                detail      = f"{rpt['scam_type']}: {rpt['indicator'][:50]}" if rpt else '',
+                admin       = current_admin
+            )
+        except Exception as audit_err:
+            print(f'[audit] {audit_err}')  # Log but never break the response
+
         return jsonify({'message': f'Report {report_id} → {new_status}'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

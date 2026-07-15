@@ -54,7 +54,8 @@ def sanitise_text(text: str) -> str:
     return text.strip()[:500]
 
 def detect_indicator_type(indicator: str) -> str:
-    if validate_url(indicator):   return 'url'
+    if validate_url(indicator):   return 'url'   # has http://
+    if is_valid_url(indicator):   return 'url'   # bare domain like fake-bank.sg
     if validate_email(indicator): return 'email'
     if validate_phone(indicator): return 'phone'
     return 'message'
@@ -99,6 +100,106 @@ def normalize_url(indicator: str) -> str:
     return indicator
 
 
+
+
+def is_valid_url(text: str) -> bool:
+    """Check if text looks like a real URL — rejects gibberish like 'asdfjkl'."""
+    text = text.strip().lower()
+    # Strip protocol for domain check
+    if text.startswith(('http://', 'https://')):
+        rest = text.split('://', 1)[1].split('/')[0]  # just the domain
+    elif text.startswith('www.'):
+        rest = text[4:].split('/')[0]
+    else:
+        rest = text.split('/')[0]
+
+    # Must have a dot in the domain
+    if '.' not in rest:
+        return False
+
+    # Split domain into parts
+    parts = rest.split('.')
+    # TLD must be 2-6 chars (com, sg, edu, co.uk, etc)
+    tld = parts[-1].rstrip('/')
+    if not (2 <= len(tld) <= 6 and tld.isalpha()):
+        return False
+    # Domain must have at least 1 char before TLD
+    if len(parts[0]) < 1:
+        return False
+    # No spaces allowed in URL
+    if ' ' in text:
+        return False
+    return True
+
+
+def is_valid_phone(text: str) -> bool:
+    """Check if text looks like a phone number."""
+    import re
+    digits = re.sub(r'[\s\-\+\(\)]', '', text)
+    return digits.isdigit() and 8 <= len(digits) <= 15
+
+
+def is_valid_email(text: str) -> bool:
+    """Check if text looks like an email address."""
+    return '@' in text and '.' in text.split('@')[-1] and len(text) > 5
+
+
+def validate_indicator(indicator: str, ind_type: str) -> tuple[bool, str]:
+    """
+    Returns (is_valid, error_message).
+    Validates all indicator types including rejecting obvious gibberish.
+    """
+    indicator = indicator.strip()
+    if not indicator:
+        return False, "Please enter something to report."
+
+    if ind_type == 'url':
+        if not is_valid_url(indicator):
+            return False, (
+                "⚠️ That doesn't look like a valid URL.\n\n"
+                "Valid examples:\n"
+                "• `http://scam-site.com`\n"
+                "• `www.fake-bank.sg`\n"
+                "• `bit.ly/scam123`\n\n"
+                "For a phone number, use +65 format.\n"
+                "For a scam message, paste the full text (20+ characters)."
+            )
+
+    elif ind_type == 'phone':
+        if not is_valid_phone(indicator):
+            return False, (
+                "⚠️ That doesn't look like a valid phone number.\n\n"
+                "Valid examples:\n"
+                "• `+65 9123 4567`\n"
+                "• `91234567`"
+            )
+
+    elif ind_type == 'email':
+        if not is_valid_email(indicator):
+            return False, (
+                "⚠️ That doesn't look like a valid email.\n\n"
+                "Valid example: `scam@fake-bank.com`"
+            )
+
+    elif ind_type == 'message':
+        # Message type = forwarded scam text — must be meaningful
+        # Reject short gibberish like 'gfgfd', 'test', 'abc'
+        if len(indicator) < 20:
+            # Short input that isn't a URL/phone/email — likely a typo
+            return False, (
+                "⚠️ That's too short to be a scam report.\n\n"
+                "What were you trying to report?\n\n"
+                "🔗 *URL/Link* — paste the full link:\n"
+                "   Example: `http://scam-site.com`\n\n"
+                "📞 *Phone number* — include country code:\n"
+                "   Example: `+6591234567`\n\n"
+                "📧 *Email* — paste the full address:\n"
+                "   Example: `scam@fake-bank.com`\n\n"
+                "💬 *Scam message* — paste the full text of the message you received"
+            )
+
+    return True, ""
+
 def check_single_indicator_sync(indicator: str) -> dict:
     """Calls GET /check. Auto-normalizes URLs without http://."""
     indicator = normalize_url(indicator)
@@ -129,8 +230,9 @@ def format_check_result(indicator: str, result: dict) -> str:
         severity = (result.get('severity') or 'high').capitalize()
         sev_icon = {'High': '🔴', 'Medium': '🟡', 'Low': '🟢'}.get(severity, '🔴')
         fuzzy    = result.get('fuzzy_match', False)
-        matched  = result.get('matched_domain', '')
-        fuzzy_note = f"\n🔗 *Domain match:* `{matched}` is blacklisted" if fuzzy else ''
+        matched  = result.get('matched_domain', '') or result.get('matched_indicator', '')
+        matched  = matched.replace('http://','').replace('https://','').replace('www.','').rstrip('/')
+        fuzzy_note = f"\n🔗 *Domain match:* `{matched}` is blacklisted" if (fuzzy and matched) else ''
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"

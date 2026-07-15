@@ -360,6 +360,10 @@ async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = check_single_indicator_sync(indicator)
         text   = format_check_result(indicator, result)
 
+        # Store for "Report This" button — message.text loses backticks
+        context.user_data['last_checked_indicator'] = indicator
+        context.user_data['last_checked_type']      = detect_indicator_type(indicator)
+
         keyboard = [
             [
                 InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
@@ -430,20 +434,67 @@ async def check_back_menu_callback(update: Update, context: ContextTypes.DEFAULT
 
 
 async def report_from_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """User tapped Report This after a check — start report with pre-filled indicator."""
+    """
+    User tapped Report This after a check.
+    Entry point into report_conv — skips Step 1, goes straight to Step 2.
+    """
     query = update.callback_query
     await query.answer()
 
-    # Try to extract URL from the message above the button
-    original_msg = query.message.text or ''
-    import re
-    urls = re.findall(r'`([^`]+)`', original_msg)
-    if urls:
-        context.user_data['indicator']      = urls[0]
-        context.user_data['indicator_type'] = detect_indicator_type(urls[0])
+    # Get indicator from user_data (stored during check — message.text loses backticks)
+    indicator = context.user_data.get('last_checked_indicator', '')
+    ind_type  = context.user_data.get('last_checked_type', 'url')
+
+    if not indicator:
+        # Fallback — can't call report_command (update.message is None in callbacks)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                f"📢 *Submit a Scam Report*\n{DIVIDER}\n\n"
+                f"📍 *Step 1 of 6* — Enter Indicator\n\n"
+                f"Send the URL, phone, or text you want to report:"
+            ),
+            parse_mode='Markdown'
+        )
+        return WAITING_FOR_INDICATOR
+
+    context.user_data['indicator']      = sanitise_text(indicator)
+    context.user_data['indicator_type'] = ind_type
 
     await query.edit_message_reply_markup(reply_markup=None)
-    await report_command(update, context)
+
+    # Go straight to Step 2 — scam type selection
+    keyboard = [
+        [
+            InlineKeyboardButton("🎣 Phishing",        callback_data='type:Phishing'),
+            InlineKeyboardButton("🛒 E-Commerce Scam", callback_data='type:E-Commerce Scam'),
+        ],
+        [
+            InlineKeyboardButton("🎭 Impersonation",   callback_data='type:Impersonation'),
+            InlineKeyboardButton("💕 Love Scam",       callback_data='type:Love Scam'),
+        ],
+        [
+            InlineKeyboardButton("📈 Investment Scam", callback_data='type:Investment Scam'),
+            InlineKeyboardButton("💬 SMS Scam",        callback_data='type:SMS Scam'),
+        ],
+        [
+            InlineKeyboardButton("💼 Job Scam",        callback_data='type:Job Scam'),
+            InlineKeyboardButton("❓ Others",           callback_data='type:Others'),
+        ],
+    ]
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            f"📢 *Submit a Scam Report*\n{DIVIDER}\n"
+            f"📍 *Step 2 of 6* — Select Scam Type\n\n"
+            f"✅ Indicator: `{sanitise_text(indicator)}`\n\n"
+            f"Tap the scam type below:"
+        ),
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return WAITING_FOR_SCAM_TYPE
 
 async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -491,8 +542,21 @@ async def receive_indicator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Too long. Max 500 characters.")
         return WAITING_FOR_INDICATOR
 
+    # ── Detect type first, then validate ──────────────────
+    ind_type = detect_indicator_type(indicator)
+    from commands import validate_indicator
+    is_valid, err_msg = validate_indicator(indicator, ind_type)
+
+    if not is_valid:
+        await update.message.reply_text(
+            f"{err_msg}\n\n"
+            f"Please try again or type /cancel to stop.",
+            parse_mode='Markdown'
+        )
+        return WAITING_FOR_INDICATOR  # Stay on Step 1
+
     context.user_data['indicator']      = sanitise_text(indicator)
-    context.user_data['indicator_type'] = detect_indicator_type(indicator)
+    context.user_data['indicator_type'] = ind_type
 
     keyboard = [
         [
@@ -961,8 +1025,10 @@ def main():
         entry_points=[
             CommandHandler('report', report_command),
             MessageHandler(filters.Regex(r'^📢 Report$'), report_command),
-            # ← Forwarded message "Report This" button enters here
+            # Forwarded message "Report This" button
             CallbackQueryHandler(handle_forwarded_report_start, pattern='^fwd:report$'),
+            # Check result "Report This" button — skips to Step 2
+            CallbackQueryHandler(report_from_check_callback, pattern='^report_from_check$'),
         ],
         states={
             WAITING_FOR_INDICATOR: [
@@ -1020,9 +1086,7 @@ def main():
     ))
     # Check result inline buttons
     # check_another handled inside check_conv entry_points
-    app.add_handler(CallbackQueryHandler(
-        report_from_check_callback, pattern='^report_from_check$'
-    ))
+    # report_from_check handled inside report_conv entry_points
     app.add_handler(CallbackQueryHandler(
         check_back_menu_callback, pattern='^check_back_menu$'
     ))

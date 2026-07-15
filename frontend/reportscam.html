@@ -1299,7 +1299,11 @@ body, nav, .page-header, .scam-card, .card,
 
         <div class="field-group">
           <label for="scam-url">Suspicious URL / Link <span class="label-optional">(if applicable)</span></label>
-          <input type="url" id="scam-url" placeholder="https://example-fake-site.com">
+          <input type="url" id="scam-url" placeholder="https://example-fake-site.com"
+            oninput="clearDupBanner(); clearUrlError()"
+            onblur="validateUrlOnBlur(); checkDuplicate()">
+          <p class="field-error" id="url-error" style="display:none;color:var(--red);font-size:0.8rem;margin-top:4px"></p>
+          <div id="dup-banner" style="display:none;margin-top:0.6rem;border-radius:10px;padding:12px 14px;font-size:0.85rem;line-height:1.5"></div>
           <p class="field-hint">Paste the full link here. Do NOT click suspicious links — copy the text instead.</p>
         </div>
 
@@ -1689,9 +1693,153 @@ function generateReportId() {
   return `SS-${yr}-${num}`;
 }
 
+
+// ── URL / Phone / Email validation ───────────────────────
+function isValidUrl(text) {
+    text = text.trim().toLowerCase();
+    // Strip protocol
+    let domain = text.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    if (!domain.includes('.')) return false;
+    const parts  = domain.split('.');
+    const tld    = parts[parts.length - 1];
+    if (!/^[a-z]{2,6}$/.test(tld)) return false;
+    if (parts[0].length < 1)        return false;
+    if (text.includes(' '))          return false;
+    return true;
+}
+
+function isValidPhone(text) {
+    const digits = text.replace(/[\s\-\+\(\)]/g, '');
+    return /^\d{8,15}$/.test(digits);
+}
+
+function validateUrlField() {
+    const urlVal   = document.getElementById('scam-url').value.trim();
+    const phoneVal = document.getElementById('scammer-num').value.trim();
+    const errors   = [];
+
+    if (urlVal && !isValidUrl(urlVal)) {
+        errors.push(`"${urlVal.substring(0,40)}" doesn't look like a valid URL. Example: http://scam-site.com`);
+    }
+    if (phoneVal && !isValidPhone(phoneVal)) {
+        errors.push(`"${phoneVal}" doesn't look like a valid phone number. Example: +65 9123 4567`);
+    }
+    return errors;
+}
+
+
+function clearUrlError() {
+    const e = document.getElementById('url-error');
+    if (e) e.style.display = 'none';
+}
+
+function validateUrlOnBlur() {
+    const val = document.getElementById('scam-url').value.trim();
+    if (!val) return;
+    const errEl = document.getElementById('url-error');
+    if (!errEl) return;
+    if (!isValidUrl(val)) {
+        errEl.textContent = '⚠️ This doesn\'t look like a valid URL. Valid examples: http://scam-site.com, fake-bank.sg';
+        errEl.style.display = 'block';
+    } else {
+        errEl.style.display = 'none';
+    }
+}
+
+// ── Duplicate detection ──────────────────────────────────
+let _dupData = null;  // store check result
+
+function clearDupBanner() {
+    _dupData = null;
+    const b = document.getElementById('dup-banner');
+    if (b) { b.style.display = 'none'; b.innerHTML = ''; }
+}
+
+async function checkDuplicate() {
+    const urlInput = document.getElementById('scam-url');
+    const raw = (urlInput?.value || '').trim();
+    if (!raw) return;
+
+    // Normalise URL
+    let url = raw;
+    if (!url.startsWith('http')) url = 'http://' + url;
+
+    const banner = document.getElementById('dup-banner');
+    banner.style.display = 'block';
+    banner.style.cssText += 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--ink-muted)';
+    banner.innerHTML = '🔍 Checking database...';
+
+    try {
+        const res  = await fetch('http://localhost:5000/check?url=' + encodeURIComponent(url));
+        const data = await res.json();
+        _dupData   = data;
+
+        const count = data.report_count || 1;
+        const type  = data.scam_type   || 'Unknown';
+
+        if (data.status === 'blacklist') {
+            banner.style.cssText = `display:block;margin-top:0.6rem;border-radius:10px;
+                padding:12px 14px;font-size:0.85rem;line-height:1.6;
+                background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);color:#f85149`;
+            banner.innerHTML = `
+                <strong>🚨 Already confirmed as a scam</strong><br>
+                <span style="color:var(--ink-soft)">
+                    This URL is already <strong>blacklisted</strong> in our database.<br>
+                    📌 Type: ${type} &nbsp;·&nbsp; 👥 ${count} ${count===1?'person has':'people have'} reported this.<br>
+                    <br>
+                    You can still submit your report to add to the community count.
+                </span>`;
+        } else if (data.status === 'whitelist') {
+            banner.style.cssText = `display:block;margin-top:0.6rem;border-radius:10px;
+                padding:12px 14px;font-size:0.85rem;line-height:1.6;
+                background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);color:#d29922`;
+            banner.innerHTML = `
+                <strong>⚠️ Already flagged as suspected scam</strong><br>
+                <span style="color:var(--ink-soft)">
+                    This URL has been flagged by the community and is under review.<br>
+                    📌 Type: ${type} &nbsp;·&nbsp; 👥 ${count} ${count===1?'person has':'people have'} reported this.<br>
+                    <br>
+                    Submit your report to help confirm it and push it to blacklist.
+                </span>`;
+        } else if (data.status === 'pending') {
+            banner.style.cssText = `display:block;margin-top:0.6rem;border-radius:10px;
+                padding:12px 14px;font-size:0.85rem;line-height:1.6;
+                background:rgba(47,129,247,0.08);border:1px solid rgba(47,129,247,0.2);color:#2f81f7`;
+            banner.innerHTML = `
+                <strong>⏳ Already reported — under review</strong><br>
+                <span style="color:var(--ink-soft)">
+                    This URL has been reported and is awaiting admin review.<br>
+                    👥 ${count} ${count===1?'person has':'people have'} reported this.<br>
+                    <br>
+                    Submit again to add to the community count.
+                </span>`;
+        } else {
+            // Clean — not in DB
+            banner.style.cssText = `display:block;margin-top:0.6rem;border-radius:10px;
+                padding:12px 14px;font-size:0.85rem;line-height:1.6;
+                background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.2);color:#3fb950`;
+            banner.innerHTML = `
+                <strong>✅ Not in our database yet</strong><br>
+                <span style="color:var(--ink-soft)">
+                    This URL hasn't been reported before. You'll be the first!
+                </span>`;
+        }
+    } catch(e) {
+        banner.style.display = 'none';
+    }
+}
+
 async function submitReport() {
     const btn     = document.querySelector('.btn-submit');
     const btnText = btn.querySelector('span') || btn;
+
+    // ── Validate before submit ────────────────────────────
+    const validationErrors = validateUrlField();
+    if (validationErrors.length > 0) {
+        alert('⚠️ Please fix these issues:\n\n' + validationErrors.join('\n'));
+        return;
+    }
+
     btn.disabled  = true;
 
     try {
@@ -1714,10 +1862,18 @@ async function submitReport() {
             // Show success state
             [1,2,3].forEach(i => document.getElementById('step-'+i).classList.remove('active'));
             document.getElementById('success-state').classList.add('show');
-            document.getElementById('report-id-text').textContent = data.report_id;
+            document.getElementById('report-id-text').textContent = data.report_id || 'Submitted';
             document.getElementById('steps-indicator').style.opacity = '0.4';
             document.getElementById('progress-fill').style.width = '100%';
             document.getElementById('progress-fill').style.background = 'var(--accent2)';
+            // Show duplicate context if applicable
+            if (data.duplicate) {
+                const el = document.getElementById('success-dup-note');
+                if (el) {
+                    el.style.display = 'block';
+                    el.textContent = `👥 ${data.report_count} people have now reported this — thank you for adding to the community!`;
+                }
+            }
         } else {
             alert(data.error || 'Submission failed. Please try again.');
         }
