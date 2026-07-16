@@ -94,11 +94,18 @@ def home():
 @rate_limit
 def submit_report():
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data received'}), 400
+
+    # Normalize indicator FIRST so validation uses the cleaned version
+    if 'indicator' in data:
+        data['indicator'] = normalize_indicator(sanitise_text(str(data['indicator'])))
+
     is_valid, error = validate_report_payload(data)
     if not is_valid:
         return jsonify({'error': error}), 400
 
-    indicator   = normalize_indicator(sanitise_text(data['indicator']))
+    indicator   = data['indicator']  # already normalized above
     description = sanitise_text(data.get('description', ''))
 
     try:
@@ -155,8 +162,8 @@ def submit_report():
             def background_work(report_id, count, current_status, current_list,
                                  scam_type, severity, source, ip):
                 """Run promotion + vote + consensus after response is sent."""
+                # 1. Promotion check
                 try:
-                    # Promotion check
                     c2 = get_connection()
                     if count >= 3 and current_status == 'pending':
                         with c2.cursor() as cur:
@@ -169,8 +176,8 @@ def submit_report():
                 except Exception as e:
                     print(f'[bg:promotion] {e}')
 
+                # 2. Record vote
                 try:
-                    # Record vote
                     c3 = get_connection()
                     with c3.cursor() as cur:
                         cur.execute(
@@ -181,19 +188,17 @@ def submit_report():
                 except Exception as e:
                     print(f'[bg:vote] {e}')
 
-                    # ── Skip consensus if admin manually reviewed ──────────
-                    try:
-                        cg = get_connection()
-                        with cg.cursor() as cur:
-                            cur.execute('SELECT admin_classified FROM reports WHERE id=%s', (report_id,))
-                            cg_row = cur.fetchone()
-                        if cg_row and cg_row.get('admin_classified'):
-                            print(f'[consensus] Skipped — admin_classified for id={report_id}')
-                            return
-                    except Exception:
-                        pass  # Column may not exist yet
+                # 3. Consensus check
+                try:
+                    # Skip if admin manually classified
+                    cg = get_connection()
+                    with cg.cursor() as cur:
+                        cur.execute('SELECT admin_classified FROM reports WHERE id=%s', (report_id,))
+                        cg_row = cur.fetchone()
+                    if cg_row and cg_row.get('admin_classified'):
+                        print(f'[consensus] Skipped — admin_classified for id={report_id}')
+                        return
 
-                    # Consensus check
                     c4 = get_connection()
                     with c4.cursor() as cur:
                         cur.execute(
@@ -265,7 +270,7 @@ def submit_report():
             with conn.cursor() as cursor:
                 cursor.execute(
                     'INSERT INTO report_votes (report_id, scam_type, severity, source, ip_address) VALUES (%s, %s, %s, %s, %s)',
-                    (new_id, data.get('scam_type',''), data.get('severity','medium'), data.get('source','unknown'), request.remote_addr)
+                    (cursor.lastrowid or 0, data.get('scam_type',''), data.get('severity','medium'), data.get('source','unknown'), request.remote_addr)
                 )
             conn.commit()
         except Exception as e:
