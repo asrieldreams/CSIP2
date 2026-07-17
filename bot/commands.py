@@ -236,7 +236,7 @@ def format_check_result(indicator: str, result: dict) -> str:
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
-            f"🔗 `{indicator}`{fuzzy_note}\n\n"
+            f"{'📞' if indicator.replace('+','').replace(' ','').replace('-','').isdigit() else '📧' if '@' in indicator else '🔗'} `{indicator}`{fuzzy_note}\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
             f"{sev_icon} *Severity:* {severity}\n"
             f"📝 *Details:* {description if description else 'No details available'}\n"
@@ -272,10 +272,17 @@ def format_check_result(indicator: str, result: dict) -> str:
 
     else:
         # clean — not in database
+        # Show appropriate icon based on indicator type
+        if indicator.replace('+','').replace(' ','').replace('-','').isdigit():
+            ind_icon = '📞'
+        elif '@' in indicator:
+            ind_icon = '📧'
+        else:
+            ind_icon = '🔗'
         return (
             f"✅ *Not Found in Database*\n"
             f"{DIVIDER}\n"
-            f"🔗 `{indicator}`\n\n"
+            f"{ind_icon} `{indicator}`\n\n"
             f"No match found in the CSIP2 scam database.\n\n"
             f"💡 Always stay cautious online. If you think this\n"
             f"is a scam, use 📢 *Report* to submit it."
@@ -290,14 +297,23 @@ async def submit_report_to_new_api(update, context):
     desc      = context.user_data.get('description', '')
     ind_type  = context.user_data.get('indicator_type', 'message')
 
+    # Get Telegram user ID for personal history
+    user = getattr(update, 'message', None) or getattr(update, 'callback_query', None)
+    tg_user_id = None
+    if user and hasattr(user, 'from_user') and user.from_user:
+        tg_user_id = user.from_user.id
+    elif hasattr(update, 'effective_user') and update.effective_user:
+        tg_user_id = update.effective_user.id
+
     payload = {
-        'indicator_type': ind_type,
-        'indicator':      indicator,
-        'scam_type':      scam_type,
-        'description':    desc,
-        'source':         'telegram',
-        'severity':       context.user_data.get('severity', 'medium'),
-        'platform':       context.user_data.get('platform', 'Telegram'),
+        'indicator_type':    ind_type,
+        'indicator':         indicator,
+        'scam_type':         scam_type,
+        'description':       desc,
+        'source':            'telegram',
+        'severity':          context.user_data.get('severity', 'medium'),
+        'platform':          context.user_data.get('platform', 'Telegram'),
+        'telegram_user_id':  tg_user_id,
     }
 
     # ── Step 1: Quick check to get current DB status (fast GET) ────────
@@ -317,8 +333,18 @@ async def submit_report_to_new_api(update, context):
             tier_line      = '⚠️ This indicator has been *flagged as suspicious* by our community.'
             current_status = 'whitelist'
         elif status == 'pending':
-            tier_line      = '🔍 This indicator is currently *under community review*.'
-            current_status = 'pending'
+            # Predict what status WILL BE after this report
+            # Promotion threshold = 3 → auto-suspect
+            next_count = db_count + 1
+            if next_count >= 3:
+                # This report triggers auto-promotion to suspected
+                tier_line      = '⚠️ This indicator has been *flagged as suspicious* by our community.'
+                current_status = 'whitelist'
+                db_count       = next_count
+            else:
+                tier_line      = '🔍 This indicator is currently *under community review*.'
+                current_status = 'pending'
+                db_count       = next_count
     except Exception as e:
         print(f'[check_before_report] {e}')
 
@@ -360,12 +386,16 @@ async def submit_report_to_new_api(update, context):
     # ── Step 3: Fire POST /report in background ───────────────────────
     def send_to_backend():
         try:
-            requests.post(
+            res = requests.post(
                 f'{CSIP2_API_BASE}/report',
                 json=payload,
                 headers={'Content-Type': 'application/json'},
                 timeout=30
             )
+            if res.status_code not in (200, 201):
+                print(f'[report:bg] Server returned {res.status_code}: {res.text[:200]}')
+            else:
+                print(f'[report:bg] OK {res.status_code} for {payload.get("indicator_type")}:{payload.get("indicator","")[:30]}')
         except Exception as e:
             print(f'[report:bg] {e}')
 

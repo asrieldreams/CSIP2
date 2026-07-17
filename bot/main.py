@@ -251,27 +251,58 @@ async def auto_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    history = user_history.get(user_id, [])
-    if not history:
+
+    # Fetch from DB — persistent across bot restarts
+    try:
+        res  = requests.get(
+            f'{CSIP2_API_BASE}/my-reports',
+            params={'user_id': user_id},
+            timeout=6
+        )
+        data = res.json()
+        reports = data.get('reports', [])
+    except Exception as e:
+        print(f'[history] {e}')
+        # Fallback to in-memory
+        reports = []
+        for entry in user_history.get(user_id, [])[-5:][::-1]:
+            reports.append({
+                'scam_type':  entry.get('scam_type', 'Unknown'),
+                'indicator':  entry.get('indicator', ''),
+                'severity':   entry.get('severity', 'medium'),
+                'platform':   entry.get('platform', 'Telegram'),
+                'status':     'pending',
+                'submitted_at': entry.get('submitted_at', ''),
+            })
+
+    if not reports:
         await update.message.reply_text(
             f"📭 *No History Yet*\n{DIVIDER}\n"
-            f"You haven't submitted any reports\n"
+            f"You haven't submitted any reports yet.\n"
             f"Tap 📢 *Report* to get started!",
             parse_mode='Markdown', reply_markup=get_main_menu()
         )
         return
-    recent = history[-5:][::-1]
-    lines  = []
-    for i, entry in enumerate(recent, 1):
+
+    status_icons = {
+        'approved': '✅', 'rejected': '❌', 'pending': '⏳'
+    }
+    lines = []
+    for i, r in enumerate(reports[:5], 1):
+        status = r.get('status', 'pending')
+        icon   = status_icons.get(status, '⏳')
+        # Show tier for approved reports
+        if status == 'approved':
+            icon = '🔴' if r.get('list_type') == 'blacklist' else '⚠️'
         lines.append(
-            f"*{i}.* 📌 {entry['scam_type']}\n"
-            f"   🔗 `{entry['indicator']}`\n"
-            f"   ⚠️ {entry.get('severity','Medium')} · 📱 {entry.get('platform','Telegram')}\n"
-            f"   📅 {entry['submitted_at']}"
+            f"*{i}.* {icon} `{r['indicator'][:45]}`\n"
+            f"   📌 {r.get('scam_type','Unknown')} · ⚠️ {(r.get('severity') or 'medium').capitalize()}\n"
+            f"   📅 {str(r.get('submitted_at',''))[:10]}"
         )
+
     await update.message.reply_text(
-        f"📖 *Your Submission History*\n{DIVIDER}\n"
-        f"Last *{len(recent)}* report{'s' if len(recent) > 1 else ''}\n\n"
+        f"📖 *Your Report History*\n{DIVIDER}\n"
+        f"Showing your last *{len(reports[:5])}* submission{'s' if len(reports[:5]) > 1 else ''}\n\n"
         + "\n\n".join(lines),
         parse_mode='Markdown', reply_markup=get_main_menu()
     )

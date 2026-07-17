@@ -1314,7 +1314,9 @@ body, nav, .page-header, .scam-card, .card,
           </div>
           <div class="field-group">
             <label for="incident-date">Date of Incident</label>
-            <input type="date" id="incident-date">
+            <input type="date" id="incident-date" oninput="validateIncidentDate(this)">
+          <p class="field-hint">Scams can only be reported from the past — future dates are not allowed.</p>
+          <p class="field-error" id="date-error" style="display:none;color:var(--red);font-size:0.8rem;margin-top:4px"></p>
             <p class="field-error" id="date-error">Please enter the date of the incident.</p>
           </div>
         </div>
@@ -1327,8 +1329,94 @@ body, nav, .page-header, .scam-card, .card,
         </div>
 
         <div class="field-group">
-          <label for="amount-lost">Amount Lost (SGD) <span class="label-optional">(if any)</span></label>
-          <input type="text" id="amount-lost" placeholder="0.00 — leave blank if nothing was lost">
+          <label for="amount-lost">
+            Amount Lost
+            <span class="label-optional">(optional — leave blank if nothing lost)</span>
+          </label>
+
+          <!-- Styled SGD input with prefix -->
+          <div id="amount-wrapper" style="
+            display: flex;
+            align-items: center;
+            background: var(--surface2, #1c2128);
+            border: 1.5px solid var(--border-soft, rgba(255,255,255,0.1));
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 0.15s;
+          " onfocusin="this.style.borderColor='var(--accent,#2f81f7)'"
+             onfocusout="this.style.borderColor='var(--border-soft,rgba(255,255,255,0.1))'">
+
+            <!-- SGD prefix badge -->
+            <span style="
+              padding: 0 14px;
+              font-size: 0.85rem;
+              font-weight: 700;
+              color: var(--ink-muted, #6e7681);
+              background: rgba(255,255,255,0.04);
+              border-right: 1.5px solid var(--border-soft, rgba(255,255,255,0.1));
+              height: 100%;
+              display: flex;
+              align-items: center;
+              white-space: nowrap;
+              user-select: none;
+            ">S$</span>
+
+            <input
+              type="number"
+              id="amount-lost"
+              placeholder="0.00"
+              min="0"
+              max="10000000"
+              step="0.01"
+              oninput="validateAmountLost(this)"
+              style="
+                flex: 1;
+                border: none !important;
+                background: transparent !important;
+                outline: none !important;
+                padding: 12px 14px !important;
+                font-size: 1rem !important;
+                font-weight: 600 !important;
+                color: var(--ink, #e6edf3) !important;
+                border-radius: 0 !important;
+                min-height: unset !important;
+              ">
+
+            <!-- Quick presets -->
+            <div style="
+              display: flex;
+              gap: 4px;
+              padding: 0 10px;
+              border-left: 1.5px solid var(--border-soft, rgba(255,255,255,0.1));
+            ">
+              <button type="button" onclick="setAmount(100)"
+                style="padding:3px 7px;border-radius:5px;font-size:0.7rem;font-weight:600;
+                       background:rgba(255,255,255,0.06);border:none;color:var(--ink-muted,#6e7681);
+                       cursor:pointer;white-space:nowrap">$100</button>
+              <button type="button" onclick="setAmount(1000)"
+                style="padding:3px 7px;border-radius:5px;font-size:0.7rem;font-weight:600;
+                       background:rgba(255,255,255,0.06);border:none;color:var(--ink-muted,#6e7681);
+                       cursor:pointer;white-space:nowrap">$1k</button>
+              <button type="button" onclick="setAmount(10000)"
+                style="padding:3px 7px;border-radius:5px;font-size:0.7rem;font-weight:600;
+                       background:rgba(255,255,255,0.06);border:none;color:var(--ink-muted,#6e7681);
+                       cursor:pointer;white-space:nowrap">$10k</button>
+            </div>
+          </div>
+
+          <!-- Live formatted display -->
+          <div id="amount-display" style="
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: var(--ink-muted, #6e7681);
+            min-height: 18px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          "></div>
+
+          <p class="field-error" id="amount-error"
+            style="display:none;color:var(--red,#f85149);font-size:0.8rem;margin-top:4px"></p>
         </div>
 
         <div class="field-group">
@@ -1829,12 +1917,102 @@ async function checkDuplicate() {
     }
 }
 
+
+function setAmount(val) {
+    const input = document.getElementById('amount-lost');
+    if (input) {
+        input.value = val;
+        validateAmountLost(input);
+        input.focus();
+    }
+}
+
+function validateAmountLost(input) {
+    const errEl  = document.getElementById('amount-error');
+    const dispEl = document.getElementById('amount-display');
+    const val    = parseFloat(input.value);
+
+    if (input.value === '' || input.value === null) {
+        errEl.style.display  = 'none';
+        if (dispEl) dispEl.innerHTML = '';
+        return true;
+    }
+    if (isNaN(val)) {
+        errEl.textContent    = '⚠️ Please enter a valid number.';
+        errEl.style.display  = 'block';
+        if (dispEl) dispEl.innerHTML = '';
+        return false;
+    }
+    if (val < 0) {
+        errEl.textContent    = '⚠️ Amount cannot be negative.';
+        errEl.style.display  = 'block';
+        if (dispEl) dispEl.innerHTML = '';
+        return false;
+    }
+    if (val > 10000000) {
+        errEl.textContent    = '⚠️ Amount cannot exceed S$10,000,000.';
+        errEl.style.display  = 'block';
+        if (dispEl) dispEl.innerHTML = '';
+        return false;
+    }
+
+    errEl.style.display = 'none';
+
+    // Show formatted amount
+    if (dispEl) {
+        const fmt = val.toLocaleString('en-SG', { style: 'currency', currency: 'SGD' });
+        const sev = val >= 10000 ? '🔴' : val >= 1000 ? '🟡' : '🟢';
+        dispEl.innerHTML = `${sev} <strong style="color:var(--ink,#e6edf3)">${fmt}</strong> reported lost`;
+    }
+    return true;
+}
+
+
+// Set today as max date for the date picker (prevents selecting future in UI)
+document.addEventListener('DOMContentLoaded', () => {
+    const d = document.getElementById('incident-date');
+    if (d) d.max = new Date().toISOString().split('T')[0];
+});
+
+function validateIncidentDate(input) {
+    const errEl = document.getElementById('date-error');
+    if (!input.value) {
+        if (errEl) errEl.style.display = 'none';
+        return true;
+    }
+    const picked = new Date(input.value);
+    const today  = new Date();
+    today.setHours(23, 59, 59, 0);
+    if (picked > today) {
+        if (errEl) {
+            errEl.textContent   = '⚠️ Incident date cannot be in the future.';
+            errEl.style.display = 'block';
+        }
+        return false;
+    }
+    if (errEl) errEl.style.display = 'none';
+    return true;
+}
+
 async function submitReport() {
     const btn     = document.querySelector('.btn-submit');
     const btnText = btn.querySelector('span') || btn;
 
     // ── Validate before submit ────────────────────────────
     const validationErrors = validateUrlField();
+
+    // Validate amount lost
+    const amountInput = document.getElementById('amount-lost');
+    if (amountInput && amountInput.value && !validateAmountLost(amountInput)) {
+        validationErrors.push('Amount lost is invalid (must be between 0 and S$10,000,000).');
+    }
+
+    // Validate incident date
+    const dateInput = document.getElementById('incident-date');
+    if (dateInput && dateInput.value && !validateIncidentDate(dateInput)) {
+        validationErrors.push('Incident date cannot be in the future.');
+    }
+
     if (validationErrors.length > 0) {
         alert('⚠️ Please fix these issues:\n\n' + validationErrors.join('\n'));
         return;

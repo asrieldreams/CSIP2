@@ -245,32 +245,33 @@ def submit_report():
                 cursor.execute("""
                     INSERT INTO reports
                         (indicator_type, indicator, scam_type, description,
-                         source, severity, platform, report_count)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
+                         source, severity, platform, report_count, telegram_user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 1, %s)
                 """, (
                     data['indicator_type'], indicator,
                     data['scam_type'], description,
                     data.get('source', 'website'),
                     data.get('severity', 'medium'),
                     data.get('platform', 'website'),
+                    data.get('telegram_user_id', None),
                 ))
             except Exception:
-                # Fallback without new columns
                 cursor.execute("""
                     INSERT INTO reports
                         (indicator_type, indicator, scam_type, description, source)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (data['indicator_type'], indicator,
-                      data['scam_type'], description,
-                      data.get('source', 'website')))
+                """, (
+                    data['indicator_type'], indicator,
+                    data['scam_type'], description,
+                     data.get('source', 'website'),
+                 ))
         conn.commit()
-
-        # Record first vote for consensus tracking
+        new_report_id = conn.insert_id()  # get inserted ID
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
                     'INSERT INTO report_votes (report_id, scam_type, severity, source, ip_address) VALUES (%s, %s, %s, %s, %s)',
-                    (cursor.lastrowid or 0, data.get('scam_type',''), data.get('severity','medium'), data.get('source','unknown'), request.remote_addr)
+                    (new_report_id, data.get('scam_type',''), data.get('severity','medium'), data.get('source','unknown'), request.remote_addr)
                 )
             conn.commit()
         except Exception as e:
@@ -327,6 +328,45 @@ def check_indicator():
     indicator = request.args.get('url') or request.args.get('indicator')
     if not indicator:
         return jsonify({'error': 'Missing indicator parameter'}), 400
+
+
+    indicator = indicator.strip()
+
+    # Detect type — phone and email need different matching logic than URL
+    import re as _re
+    _cleaned = _re.sub(r'[\s\-\+\(\)]', '', indicator)
+    if _cleaned.isdigit() and 8 <= len(_cleaned) <= 15:
+        _ind_type = 'phone'
+    elif '@' in indicator and '.' in indicator.split('@')[-1]:
+        _ind_type = 'email'
+    else:
+        _ind_type = 'url'
+
+    if _ind_type in ('phone', 'email'):
+        try:
+            _conn = get_connection()
+            if _ind_type == 'phone':
+                _bare = _re.sub(r'[\s\-\(\)]', '', indicator)
+                _variants = [_bare]
+                if _bare.startswith('+65'):   _variants.append(_bare[3:])
+                elif len(_bare) == 8:          _variants.append('+65' + _bare)
+            else:
+                _variants = [indicator.lower()]
+            _ph = ','.join(['%s'] * len(_variants))
+            with _conn.cursor() as _cur:
+                _cur.execute(f'SELECT id, list_type, scam_type, description, severity, COALESCE(report_count,1) as report_count FROM reports WHERE LOWER(indicator) IN ({_ph}) AND status=%s ORDER BY submitted_at DESC LIMIT 1', _variants + ['approved'])
+                _row = _cur.fetchone()
+            if not _row:
+                with _conn.cursor() as _cur:
+                    _cur.execute(f'SELECT id, COALESCE(report_count,1) as report_count FROM reports WHERE LOWER(indicator) IN ({_ph}) AND status=%s LIMIT 1', _variants + ['pending'])
+                    _pend = _cur.fetchone()
+                if _pend:
+                    return jsonify({'status':'pending','indicator':indicator,'report_count':_pend.get('report_count',1),'message':'Under review.'}), 200
+                return jsonify({'status':'clean','indicator':indicator,'message':'No reports found.'}), 200
+            _stype = 'blacklist' if _row['list_type'] == 'blacklist' else 'whitelist'
+            return jsonify({'status':_stype,'indicator':indicator,'scam_type':_row.get('scam_type','Unknown'),'description':_row.get('description',''),'severity':_row.get('severity') or ('high' if _stype=='blacklist' else 'medium'),'report_count':_row.get('report_count',1),'message':'WARNING' if _stype=='blacklist' else 'CAUTION'}), 200
+        except Exception as _e:
+            return jsonify({'status':'error','message':str(_e)}), 500
 
     normalized = normalize_indicator(indicator)
 
@@ -501,6 +541,46 @@ def log_override():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+
+
+@app.route('/my-reports', methods=['GET'])
+def my_reports():
+    """Returns reports submitted by a specific Telegram user."""
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, indicator_type, indicator, scam_type,
+                       severity, platform, status, list_type,
+                       COALESCE(report_count, 1) as report_count,
+                       submitted_at
+                FROM reports
+                WHERE telegram_user_id = %s
+                ORDER BY submitted_at DESC
+                LIMIT 10
+            """, (user_id,))
+            rows = cursor.fetchall()
+
+        reports = [{
+            'id':             r['id'],
+            'indicator_type': r['indicator_type'],
+            'indicator':      r['indicator'],
+            'scam_type':      r['scam_type'],
+            'severity':       r['severity'] or 'medium',
+            'platform':       r['platform'] or 'Telegram',
+            'status':         r['status'],
+            'list_type':      r['list_type'],
+            'report_count':   r['report_count'],
+            'submitted_at':   str(r['submitted_at']),
+        } for r in rows]
+
+        return jsonify({'reports': reports, 'total': len(reports)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     import os

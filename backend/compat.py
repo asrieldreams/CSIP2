@@ -337,18 +337,25 @@ def api_submit_scam():
     if severity not in ('low', 'medium', 'high'):
         severity = 'medium'
 
-    # Normalize amount_lost
+    # Normalize and validate amount_lost
     try:
         amount_lost = float(amount_lost) if amount_lost else None
-        if amount_lost == 0:
-            amount_lost = None
+        if amount_lost is not None:
+            if amount_lost < 0:
+                return jsonify({'error': 'Amount lost cannot be negative.'}), 400
+            if amount_lost > 10_000_000:
+                return jsonify({'error': 'Amount lost cannot exceed S$10,000,000.'}), 400
+            if amount_lost == 0:
+                amount_lost = None
     except (ValueError, TypeError):
-        amount_lost = None
+        return jsonify({'error': 'Amount lost must be a valid number.'}), 400
 
-    # Normalize incident_date
+    # Normalize and validate incident_date
     if incident_date:
         try:
-            datetime.strptime(incident_date, '%Y-%m-%d')
+            parsed_date = datetime.strptime(incident_date, '%Y-%m-%d')
+            if parsed_date.date() > datetime.utcnow().date():
+                return jsonify({'error': 'Incident date cannot be in the future.'}), 400
         except ValueError:
             incident_date = None
 
