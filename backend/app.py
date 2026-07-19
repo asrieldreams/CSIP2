@@ -97,11 +97,15 @@ def submit_report():
     if not data:
         return jsonify({'error': 'No data received'}), 400
 
+    # Debug logging — remove after testing
+    print(f'[/report] type={data.get("indicator_type")} indicator={str(data.get("indicator",""))[:50]}')
+
     # Normalize indicator FIRST so validation uses the cleaned version
     if 'indicator' in data:
         data['indicator'] = normalize_indicator(sanitise_text(str(data['indicator'])))
 
     is_valid, error = validate_report_payload(data)
+    print(f'[/report] validation: valid={is_valid} error={error}')
     if not is_valid:
         return jsonify({'error': error}), 400
 

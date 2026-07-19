@@ -10,6 +10,16 @@ const SKIP_PREFIXES = [
     'chrome-error://', 'edge://', 'data:'
 ];
 
+// Mail providers — handled by content.js email scanner, not URL checker
+const MAIL_DOMAINS = [
+    'mail.google.com',
+    'outlook.live.com',
+    'outlook.office.com',
+    'outlook.office365.com',
+    'mail.yahoo.com',
+    'mail.proton.me',
+];
+
 const SHORTENERS = [
     'bit.ly', 't.co', 'tinyurl.com', 'goo.gl',
     'ow.ly', 'tiny.cc', 'rb.gy', 'cutt.ly',
@@ -53,7 +63,13 @@ function normalizeUrl(url) {
 }
 
 function shouldSkip(url) {
-    return SKIP_PREFIXES.some(p => url.startsWith(p));
+    if (SKIP_PREFIXES.some(p => url.startsWith(p))) return true;
+    // Skip mail providers — email scanner in content.js handles these
+    try {
+        const host = new URL(url).hostname;
+        if (MAIL_DOMAINS.some(d => host === d || host.endsWith('.' + d))) return true;
+    } catch { return false; }
+    return false;
 }
 
 function isShortener(url) {

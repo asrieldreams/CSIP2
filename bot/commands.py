@@ -103,11 +103,16 @@ def normalize_url(indicator: str) -> str:
 
 
 def is_valid_url(text: str) -> bool:
-    """Check if text looks like a real URL — rejects gibberish like 'asdfjkl'."""
+    """Check if text looks like a real URL — rejects gibberish, emails, phone numbers."""
     text = text.strip().lower()
+
+    # Reject emails immediately — they have @ and are not URLs
+    if '@' in text:
+        return False
+
     # Strip protocol for domain check
     if text.startswith(('http://', 'https://')):
-        rest = text.split('://', 1)[1].split('/')[0]  # just the domain
+        rest = text.split('://', 1)[1].split('/')[0]
     elif text.startswith('www.'):
         rest = text[4:].split('/')[0]
     else:
@@ -333,18 +338,15 @@ async def submit_report_to_new_api(update, context):
             tier_line      = '⚠️ This indicator has been *flagged as suspicious* by our community.'
             current_status = 'whitelist'
         elif status == 'pending':
-            # Predict what status WILL BE after this report
-            # Promotion threshold = 3 → auto-suspect
+            # Predict tier based on count AFTER this report
+            # DO NOT change db_count — count display uses db_count + 1 already
             next_count = db_count + 1
             if next_count >= 3:
-                # This report triggers auto-promotion to suspected
                 tier_line      = '⚠️ This indicator has been *flagged as suspicious* by our community.'
                 current_status = 'whitelist'
-                db_count       = next_count
             else:
                 tier_line      = '🔍 This indicator is currently *under community review*.'
                 current_status = 'pending'
-                db_count       = next_count
     except Exception as e:
         print(f'[check_before_report] {e}')
 
@@ -384,6 +386,9 @@ async def submit_report_to_new_api(update, context):
     )
 
     # ── Step 3: Fire POST /report in background ───────────────────────
+    # Debug: print what we're sending
+    print(f'[report] Sending: type={payload.get("indicator_type")} indicator={payload.get("indicator","")[:40]}')
+
     def send_to_backend():
         try:
             res = requests.post(
@@ -393,11 +398,11 @@ async def submit_report_to_new_api(update, context):
                 timeout=30
             )
             if res.status_code not in (200, 201):
-                print(f'[report:bg] Server returned {res.status_code}: {res.text[:200]}')
+                print(f'[report:bg] FAILED {res.status_code}: {res.text[:300]}')
             else:
-                print(f'[report:bg] OK {res.status_code} for {payload.get("indicator_type")}:{payload.get("indicator","")[:30]}')
+                print(f'[report:bg] OK {res.status_code}: {res.text[:100]}')
         except Exception as e:
-            print(f'[report:bg] {e}')
+            print(f'[report:bg] EXCEPTION: {e}')
 
     threading.Thread(target=send_to_backend, daemon=True).start()
 
