@@ -321,29 +321,133 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #  Group chat support
 # ============================================================
 
+
+
+async def handle_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Greet the group when bot is added."""
+    for member in update.message.new_chat_members:
+        if member.id == context.bot.id:
+            await update.message.reply_text(
+                f"🛡️ *CSIP2 ScamWatch Bot is now active!*\n"
+                f"{DIVIDER}\n\n"
+                f"I'll automatically scan all messages in this group for:\n"
+                f"🔗 Scam URLs & phishing links\n"
+                f"📞 Known scam phone numbers\n\n"
+                f"*What I do:*\n"
+                f"• 🚨 Flag confirmed scams immediately\n"
+                f"• ⚠️ Warn about suspected scams\n"
+                f"• 🏷️ Show scam type and report count\n"
+                f"• 📤 Auto-delete warnings after 2 min\n\n"
+                f"*Commands:*\n"
+                f"`/check <url>` — check any indicator\n"
+                f"`/report` — report a new scam\n\n"
+                f"_Powered by CSIP2 · Built by TP CDF_",
+                parse_mode='Markdown'
+            )
+            break
+
 async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text or update.message.caption or ''
+    """Scan group messages for scam indicators and warn silently."""
+    msg  = update.message
+    text = msg.text or msg.caption or ''
     if not text:
         return
+
+    # Extract URLs and phone numbers from message
     found = extract_indicators(text)
     all_indicators = [('url', u) for u in found['urls']] + \
                      [('phone', p) for p in found['phones']]
     if not all_indicators:
         return
-    flagged = []
-    for _, indicator in all_indicators:
+
+    # Check each indicator against the database
+    flagged_bl  = []  # blacklisted (confirmed scam)
+    flagged_wl  = []  # suspected (community flagged)
+
+    for ind_type, indicator in all_indicators:
         result = check_single_indicator_sync(indicator)
-        if result.get('status') in ('blacklist', 'whitelist'):
-            flagged.append(format_check_result(indicator, result))
-    if flagged:
-        sender = update.message.from_user.first_name or 'Someone'
-        await update.message.reply_text(
-            f"🚨 *CSIP2 Scam Alert*\n{DIVIDER}\n"
-            f"⚠️ {sender} shared a flagged indicator!\n\n"
-            + "\n\n".join(flagged) +
-            f"\n\n{DIVIDER}\n🛡️ Stay safe! Use /report to submit new scams",
-            parse_mode='Markdown'
+        status = result.get('status', 'clean')
+        if status == 'blacklist':
+            flagged_bl.append((indicator, result))
+        elif status == 'whitelist':
+            flagged_wl.append((indicator, result))
+
+    if not flagged_bl and not flagged_wl:
+        return  # all clean — stay silent
+
+    # Build the warning
+    sender_mention = f"@{msg.from_user.username}" if msg.from_user.username \
+                     else msg.from_user.first_name or "Someone"
+
+    lines = []
+
+    for indicator, result in flagged_bl:
+        count     = result.get('report_count', 1)
+        scam_type = result.get('scam_type', 'Unknown')
+        icon      = '📞' if indicator.replace('+','').replace(' ','').replace('-','').isdigit() \
+                    else '📧' if '@' in indicator else '🔗'
+        lines.append(
+            f"🚨 *CONFIRMED SCAM DETECTED*\n"
+            f"{icon} `{indicator}`\n"
+            f"📌 {scam_type} · 👥 {count} {'report' if count==1 else 'reports'}\n"
+            f"⛔ *DO NOT* click, call, or reply to this"
         )
+
+    for indicator, result in flagged_wl:
+        count     = result.get('report_count', 1)
+        scam_type = result.get('scam_type', 'Unknown')
+        icon      = '📞' if indicator.replace('+','').replace(' ','').replace('-','').isdigit() \
+                    else '📧' if '@' in indicator else '🔗'
+        lines.append(
+            f"⚠️ *SUSPECTED SCAM*\n"
+            f"{icon} `{indicator}`\n"
+            f"📌 {scam_type} · 👥 {count} community {'report' if count==1 else 'reports'}\n"
+            f"⚠️ Proceed with caution"
+        )
+
+    severity = "🚨" if flagged_bl else "⚠️"
+
+    warning_text = (
+        f"{severity} *CSIP2 ScamWatch Alert*\n"
+        f"{DIVIDER}\n"
+        f"⚠️ {sender_mention} shared a flagged indicator!\n\n"
+        + "\n\n".join(lines) +
+        f"\n\n{DIVIDER}\n"
+        f"🛡️ Stay safe · Report new scams: /report"
+    )
+
+    # Inline buttons for group context
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📢 Report This",    callback_data='report_from_check'),
+        InlineKeyboardButton("📤 Share Warning",  callback_data='share_warning'),
+    ]])
+
+    # Store for buttons
+    if flagged_bl:
+        context.user_data['last_checked_indicator'] = flagged_bl[0][0]
+        context.user_data['last_check_status']      = 'blacklist'
+        context.user_data['last_check_scam_type']   = flagged_bl[0][1].get('scam_type', 'Unknown')
+        context.user_data['last_check_count']       = flagged_bl[0][1].get('report_count', 1)
+
+    # Reply to the original message so context is clear
+    sent = await msg.reply_text(
+        warning_text,
+        parse_mode='Markdown',
+        reply_markup=keyboard,
+    )
+
+    # Auto-delete confirmed scam warnings after 120 seconds
+    # (suspected stay longer so people can read)
+    if flagged_bl:
+        async def delete_later():
+            import asyncio
+            await asyncio.sleep(120)
+            try:
+                await sent.delete()
+            except Exception:
+                pass
+        import asyncio
+        asyncio.create_task(delete_later())
 
 
 # ============================================================
@@ -1284,9 +1388,14 @@ def main():
     ))
 
     # ── Group scan ────────────────────────────────────────
+    # Welcome message when bot joins group
     app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND &
-        (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP),
+        filters.StatusUpdate.NEW_CHAT_MEMBERS,
+        handle_new_chat_members
+    ))
+    # Auto-scan group messages
+    app.add_handler(MessageHandler(
+        (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP) & filters.TEXT,
         group_scan_message
     ))
 
