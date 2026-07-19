@@ -18,6 +18,28 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'csip2-secret-change-this-before-deployment'
 
+# ── /check rate limiting ───────────────────────────────────────
+import time as _time
+_check_counts  = {}   # ip -> {'count': n, 'window_start': ts}
+_CHECK_LIMIT   = 60   # checks per hour per IP
+_CHECK_WINDOW  = 3600 # 1 hour window
+
+def check_rate_limit(ip):
+    if ip in ('127.0.0.1', '::1', 'localhost'):
+        return True, _CHECK_LIMIT
+    now   = _time.time()
+    entry = _check_counts.get(ip)
+    if not entry or (now - entry['window_start']) > _CHECK_WINDOW:
+        _check_counts[ip] = {'count': 1, 'window_start': now}
+        return True, _CHECK_LIMIT - 1
+    entry['count'] += 1
+    if entry['count'] > _CHECK_LIMIT:
+        if entry['count'] in (61, 100, 200):
+            print(f'[rate:check] {ip} hit {entry["count"]} checks')
+        return False, 0
+    return True, _CHECK_LIMIT - entry['count']
+
+
 app.register_blueprint(admin_bp)
 app.register_blueprint(compat_bp)
 
@@ -89,6 +111,13 @@ def home():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
+
+@app.route('/', methods=['GET'])
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Quick health check — used by website to verify backend is reachable."""
+    return jsonify({'status': 'ok', 'service': 'CSIP2 ScamWatch API'}), 200
 
 @app.route('/report', methods=['POST'])
 @rate_limit
@@ -329,6 +358,14 @@ def get_reports():
 
 @app.route('/check', methods=['GET'])
 def check_indicator():
+    # ── Rate limit: 60 checks/hour per IP ─────────────────────
+    _ip       = request.remote_addr
+    _ok, _rem = check_rate_limit(_ip)
+    if not _ok:
+        _e    = _check_counts.get(_ip, {})
+        _rst  = int(_CHECK_WINDOW - (_time.time() - _e.get('window_start', _time.time())))
+        return jsonify({'status':'rate_limited','error':f'Too many checks ({_CHECK_LIMIT}/hr)','reset_in':max(0,_rst),'message':f'Try again in {max(0,_rst)//60} min.'}), 429
+
     indicator = request.args.get('url') or request.args.get('indicator')
     if not indicator:
         return jsonify({'error': 'Missing indicator parameter'}), 400
@@ -366,6 +403,43 @@ def check_indicator():
                     _pend = _cur.fetchone()
                 if _pend:
                     return jsonify({'status':'pending','indicator':indicator,'report_count':_pend.get('report_count',1),'message':'Under review.'}), 200
+
+                # ── Email domain cross-reference ───────────────────────────
+                # Check if the email's domain is blacklisted as a URL
+                # e.g. scam@fake-dbs.com → check fake-dbs.com
+                if '@' in indicator:
+                    email_domain = indicator.split('@')[1].lower().strip()
+                    domain_variants = []
+                    for proto in ('http://', 'https://'):
+                        for prefix in ('', 'www.'):
+                            domain_variants.append(proto + prefix + email_domain)
+                            domain_variants.append(proto + prefix + email_domain + '/')
+                    _dph = ','.join(['%s'] * len(domain_variants))
+                    with _conn.cursor() as _cur:
+                        _cur.execute(f"""
+                            SELECT id, list_type, scam_type, description,
+                                   severity, indicator as matched_url,
+                                   COALESCE(report_count,1) as report_count
+                            FROM reports
+                            WHERE indicator IN ({_dph}) AND status='approved'
+                            ORDER BY submitted_at DESC LIMIT 1
+                        """, domain_variants)
+                        _domain_row = _cur.fetchone()
+                    if _domain_row:
+                        _stype = 'blacklist' if _domain_row['list_type'] == 'blacklist' else 'whitelist'
+                        _note  = f"Domain match: {email_domain} is {'blacklisted' if _stype == 'blacklist' else 'flagged'}"
+                        return jsonify({
+                            'status':       _stype,
+                            'indicator':    indicator,
+                            'scam_type':    _domain_row.get('scam_type', 'Unknown'),
+                            'description':  _note,
+                            'severity':     _domain_row.get('severity') or ('high' if _stype == 'blacklist' else 'medium'),
+                            'report_count': _domain_row.get('report_count', 1),
+                            'fuzzy_match':  True,
+                            'matched_domain': email_domain,
+                            'message':      'Domain blacklisted'
+                        }), 200
+
                 return jsonify({'status':'clean','indicator':indicator,'message':'No reports found.'}), 200
             _stype = 'blacklist' if _row['list_type'] == 'blacklist' else 'whitelist'
             return jsonify({'status':_stype,'indicator':indicator,'scam_type':_row.get('scam_type','Unknown'),'description':_row.get('description',''),'severity':_row.get('severity') or ('high' if _stype=='blacklist' else 'medium'),'report_count':_row.get('report_count',1),'message':'WARNING' if _stype=='blacklist' else 'CAUTION'}), 200
