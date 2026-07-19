@@ -5,6 +5,9 @@
 # ============================================================
 
 import re
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from flask_cors import CORS
 from flask import Flask, request, jsonify, session
 from db import get_connection
@@ -38,6 +41,36 @@ def check_rate_limit(ip):
             print(f'[rate:check] {ip} hit {entry["count"]} checks')
         return False, 0
     return True, _CHECK_LIMIT - entry['count']
+
+# ── Velocity spike tracking ─────────────────────────────────────
+_spike_tracker        = {}  # indicator → [timestamps]
+_SPIKE_THRESHOLD      = 3   # reports within window triggers alert
+_SPIKE_WINDOW         = 3600  # 1 hour
+_pending_notifications = []  # in-memory alert store — bot + dashboard poll this
+
+def send_spike_alert(indicator, scam_type, count, minutes_span):
+    """Store spike alert in memory — dashboard polls it, bot sends to Telegram."""
+    import re as _r
+    c    = _r.sub(r'[\s\-\+\(\)]', '', indicator)
+    icon = '📞' if (c.isdigit() and 8<=len(c)<=15) else '📧' if '@' in indicator else '🔗'
+
+    alert = {
+        'type':         'spike',
+        'indicator':    indicator,
+        'icon':         icon,
+        'scam_type':    scam_type,
+        'count':        count,
+        'minutes_span': minutes_span,
+        'timestamp':    _time.time(),
+        'sent_to_bot':  False,
+    }
+    _pending_notifications.append(alert)
+    if len(_pending_notifications) > 50:
+        _pending_notifications.pop(0)
+
+    print(f'[spike] Alert queued: {indicator} — {count} reports in {minutes_span}min')
+
+
 
 
 app.register_blueprint(admin_bp)
@@ -126,15 +159,12 @@ def submit_report():
     if not data:
         return jsonify({'error': 'No data received'}), 400
 
-    # Debug logging — remove after testing
-    print(f'[/report] type={data.get("indicator_type")} indicator={str(data.get("indicator",""))[:50]}')
 
     # Normalize indicator FIRST so validation uses the cleaned version
     if 'indicator' in data:
         data['indicator'] = normalize_indicator(sanitise_text(str(data['indicator'])))
 
     is_valid, error = validate_report_payload(data)
-    print(f'[/report] validation: valid={is_valid} error={error}')
     if not is_valid:
         return jsonify({'error': error}), 400
 
@@ -258,6 +288,34 @@ def submit_report():
                 except Exception as e:
                     print(f'[bg:consensus] {e}')
 
+                # ── 4. Velocity spike check ────────────────────────
+                try:
+                    now = _time.time()
+                    # Get indicator from DB for spike tracking
+                    cs = get_connection()
+                    with cs.cursor() as cur:
+                        cur.execute('SELECT indicator, scam_type FROM reports WHERE id=%s', (report_id,))
+                        rpt = cur.fetchone()
+                    if rpt:
+                        ind = rpt['indicator']
+                        # Update spike tracker
+                        times = _spike_tracker.get(ind, [])
+                        times = [t for t in times if now - t < _SPIKE_WINDOW]  # trim old
+                        times.append(now)
+                        _spike_tracker[ind] = times
+                        print(f'[spike] {ind[:40]} → {len(times)} report(s) in window (need {_SPIKE_THRESHOLD})')
+                        # Fire alert if threshold hit (exactly at threshold, not every report after)
+                        if len(times) == _SPIKE_THRESHOLD:
+                            minutes_span = int((times[-1] - times[0]) / 60) + 1
+                            import threading as _th
+                            _th.Thread(
+                                target=send_spike_alert,
+                                args=(ind, rpt['scam_type'], len(times), minutes_span),
+                                daemon=True
+                            ).start()
+                except Exception as e:
+                    print(f'[bg:spike] {e}')
+
             # Fire background thread — non-blocking
             t = threading.Thread(
                 target=background_work,
@@ -300,6 +358,18 @@ def submit_report():
                  ))
         conn.commit()
         new_report_id = conn.insert_id()  # get inserted ID
+        # Track new report in spike tracker too
+        try:
+            _ind   = data.get('indicator', '')
+            _times = _spike_tracker.get(_ind, [])
+            _now   = _time.time()
+            _times = [t for t in _times if _now - t < _SPIKE_WINDOW]
+            _times.append(_now)
+            _spike_tracker[_ind] = _times
+            print(f'[spike:new] {_ind[:40]} → {len(_times)} report(s) in window')
+        except Exception as _se:
+            print(f'[spike:new] {_se}')
+
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -659,6 +729,51 @@ def my_reports():
         return jsonify({'reports': reports, 'total': len(reports)}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/notifications', methods=['GET'])
+def get_notifications():
+    """Return spike alerts from in-memory store — no DB needed."""
+    mark_sent = request.args.get('mark_sent') == '1'
+    now       = _time.time()
+
+    # Filter to last 24 hours
+    recent = [
+        n for n in _pending_notifications
+        if now - n['timestamp'] < 86400
+    ][-20:]
+    print(f'[notif] pending={len(_pending_notifications)} recent={len(recent)} mark_sent={mark_sent}')
+
+    if mark_sent:
+        for n in _pending_notifications:
+            n['sent_to_bot'] = True
+
+    notifs = [
+        {
+            'type':         n['type'],
+            'indicator':    n['indicator'],
+            'icon':         n.get('icon', '🔗'),
+            'scam_type':    n['scam_type'],
+            'count':        n['count'],
+            'minutes_span': n['minutes_span'],
+            'timestamp':    n['timestamp'],
+            'age_minutes':  int((now - n['timestamp']) / 60),
+        }
+        for n in recent
+    ]
+
+    unread = sum(1 for n in _pending_notifications if not n.get('sent_to_bot'))
+    return jsonify({'notifications': notifs, 'unread': unread}), 200
+
+
+@app.route('/debug/notifications', methods=['GET'])
+def debug_notifications():
+    """Dev-only: inspect _pending_notifications directly."""
+    return jsonify({
+        'count':         len(_pending_notifications),
+        'spike_tracker': {k: len(v) for k, v in _spike_tracker.items()},
+        'notifications': _pending_notifications,
+    }), 200
 
 if __name__ == '__main__':
     import os

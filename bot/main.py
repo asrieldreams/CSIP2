@@ -5,6 +5,7 @@
 # ============================================================
 
 import os
+import asyncio
 import re
 import io
 import logging
@@ -155,10 +156,18 @@ async def scan_qr_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
             normalized = normalize_url(qr_data)
             result     = check_single_indicator_sync(normalized)
             result_msg = format_check_result(normalized, result)
-            keyboard   = [[
-                InlineKeyboardButton("📢 Report This",  callback_data='report_from_check'),
-                InlineKeyboardButton("🏠 Back to Menu", callback_data='check_back_menu'),
-            ]]
+            qr_status  = result.get('status', 'clean')
+            if qr_status in ('blacklist', 'whitelist'):
+                keyboard = [
+                    [InlineKeyboardButton("📢 Report This",  callback_data='report_from_check'),
+                     InlineKeyboardButton("📤 Share Warning", callback_data='share_warning')],
+                    [InlineKeyboardButton("🏠 Back to Menu", callback_data='check_back_menu')],
+                ]
+            else:
+                keyboard = [[
+                    InlineKeyboardButton("📢 Report This",  callback_data='report_from_check'),
+                    InlineKeyboardButton("🏠 Back to Menu", callback_data='check_back_menu'),
+                ]]
         else:
             result_msg = (
                 f"📄 *QR Content Decoded*\n{DIVIDER}\n"
@@ -391,19 +400,36 @@ async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = check_single_indicator_sync(indicator)
         text   = format_check_result(indicator, result)
 
-        # Store for "Report This" button — message.text loses backticks
-        context.user_data['last_checked_indicator'] = indicator
-        context.user_data['last_checked_type']      = detect_indicator_type(indicator)
+        # Store for "Report This" and "Share Warning" buttons
+        context.user_data['last_checked_indicator']  = indicator
+        context.user_data['last_checked_type']       = detect_indicator_type(indicator)
+        context.user_data['last_check_status']       = result.get('status', 'clean')
+        context.user_data['last_check_scam_type']    = result.get('scam_type', 'Unknown')
+        context.user_data['last_check_count']        = result.get('report_count', 1)
 
-        keyboard = [
-            [
-                InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
-                InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
-            ],
-            [
-                InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
-            ],
-        ]
+        # Add Share Warning for blacklisted/suspected only
+        status = result.get('status', 'clean')
+        if status in ('blacklist', 'whitelist'):
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+                    InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
+                ],
+                [
+                    InlineKeyboardButton("📤 Share Warning",  callback_data='share_warning'),
+                    InlineKeyboardButton("🏠 Back to Menu",   callback_data='check_back_menu'),
+                ],
+            ]
+        else:
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+                    InlineKeyboardButton("📢 Report This",   callback_data='report_from_check'),
+                ],
+                [
+                    InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
+                ],
+            ]
 
         # Delete the "Checking..." message and send result
         try:
@@ -432,6 +458,54 @@ async def receive_check_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return ConversationHandler.END
+
+
+async def share_warning_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate a pre-written shareable warning message."""
+    query = update.callback_query
+    await query.answer()
+
+    indicator  = context.user_data.get('last_checked_indicator', '')
+    scam_type  = context.user_data.get('last_check_scam_type', 'Unknown')
+    count      = context.user_data.get('last_check_count', 1)
+    status     = context.user_data.get('last_check_status', 'blacklist')
+
+    status_label = '🚨 CONFIRMED SCAM' if status == 'blacklist' else '⚠️ SUSPECTED SCAM'
+    ind_icon     = '📞' if indicator.replace('+','').replace(' ','').replace('-','').isdigit()                    else '📧' if '@' in indicator else '🔗'
+
+    share_text = (
+        f"{status_label}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{ind_icon} {indicator}\n\n"
+        f"📌 Scam Type: {scam_type}\n"
+        f"👥 Reported by: {count} {'person' if count == 1 else 'people'} on CSIP2\n\n"
+        f"⛔ Do NOT click links, share personal info,\n"
+        f"or transfer money if contacted by this.\n\n"
+        f"🚔 Report scams to SPF at 999\n"
+        f"📱 Or visit scamalert.sg\n\n"
+        f"🛡️ Checked via CSIP2 ScamWatch\n"
+        f"Forward this to protect your friends & family!"
+    )
+
+    await query.edit_message_reply_markup(reply_markup=None)
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            f"📤 *Share this warning with friends:*\n"
+            f"{DIVIDER}\n"
+            f"_Copy and forward the message below_ 👇"
+        ),
+        parse_mode='Markdown'
+    )
+    # Send as plain text so it's easy to forward
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=share_text,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔍 Check Another", callback_data='check_another'),
+            InlineKeyboardButton("🏠 Back to Menu",  callback_data='check_back_menu'),
+        ]])
+    )
 
 
 async def check_another_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1031,6 +1105,79 @@ async def handle_forwarded_report_start(update: Update, context: ContextTypes.DE
     return WAITING_FOR_SCAM_TYPE
 
 
+def poll_spike_alerts_sync():
+    """Run in background thread — polls backend for spike alerts every 30s."""
+    import time as _t
+    admin_id  = os.getenv('ADMIN_TELEGRAM_ID', '').strip()
+    bot_token = TELEGRAM_BOT_TOKEN
+
+    if not admin_id or admin_id == 'your_telegram_id_here':
+        print('[spike-poller] ⚠️  ADMIN_TELEGRAM_ID not set in bot/.env — skipping')
+        return
+    try:
+        chat_id = int(admin_id)  # Telegram requires numeric ID
+    except ValueError:
+        print(f'[spike-poller] ⚠️  ADMIN_TELEGRAM_ID must be a NUMBER not "{admin_id}"')
+        print('[spike-poller]    Get your ID from @userinfobot on Telegram')
+        return
+
+    import threading
+    def _poll():
+        print(f'[spike-poller] ✅ Running — admin ID: {chat_id}')
+        sent_keys = set()  # avoid re-sending same alert
+
+        while True:
+            try:
+                r = requests.get(
+                    f'{CSIP2_API_BASE}/api/admin/notifications',
+                    params={'mark_sent': '1'},
+                    timeout=5
+                )
+                if r.status_code != 200:
+                    _t.sleep(30)
+                    continue
+
+                notifs = r.json().get('notifications', [])
+                # Send alerts up to 30 minutes old (wider window)
+                for n in notifs:
+                    key = f"{n['indicator']}:{n['timestamp']}"
+                    if key in sent_keys:
+                        continue
+                    if n.get('age_minutes', 999) > 30:
+                        continue
+                    icon = n.get('icon', '🔗')
+                    msg  = (
+                        f"🚨 *SPIKE ALERT — CSIP2 ScamWatch*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        f"{icon} `{n['indicator']}`\n\n"
+                        f"📌 Type: {n['scam_type']}\n"
+                        f"👥 *{n['count']} reports* in the last *{n['minutes_span']} min*\n\n"
+                        f"→ Possible active scam campaign\n"
+                        f"🖥️ Review in admin dashboard"
+                    )
+                    try:
+                        resp = requests.post(
+                            f'https://api.telegram.org/bot{bot_token}/sendMessage',
+                            json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'},
+                            timeout=5
+                        )
+                        if resp.status_code == 200:
+                            sent_keys.add(key)
+                            print(f'[spike-poller] ✅ Alert sent: {n["indicator"]}')
+                        else:
+                            print(f'[spike-poller] ❌ Telegram error: {resp.text[:80]}')
+                    except Exception as e:
+                        print(f'[spike-poller] Send failed: {e}')
+            except Exception as e:
+                print(f'[spike-poller] Poll error: {e}')
+
+            _t.sleep(30)  # poll every 30 seconds
+
+    t = threading.Thread(target=_poll, daemon=True)
+    t.start()
+    print(f'[spike-poller] ✅ Started — polling every 30s, alerts sent to ID {chat_id}')
+
+
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -1117,10 +1264,11 @@ def main():
     ))
     # Check result inline buttons
     # check_another handled inside check_conv entry_points
+    app.add_handler(CallbackQueryHandler(share_warning_callback, pattern='^share_warning$'), group=-1)
     # report_from_check handled inside report_conv entry_points
     app.add_handler(CallbackQueryHandler(
         check_back_menu_callback, pattern='^check_back_menu$'
-    ))
+    ), group=-1)
     # fwd:report is handled inside ConversationHandler as entry_point (registered above)
 
     # ── QR code scanner ───────────────────────────────────
@@ -1143,6 +1291,9 @@ def main():
     ))
 
     print("🤖 CSIP2 Bot is running...")
+    # Start spike alert poller in background thread
+    poll_spike_alerts_sync()
+
     app.run_polling()
 
 

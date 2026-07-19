@@ -218,9 +218,9 @@ def check_single_indicator_sync(indicator: str) -> dict:
             return response.json()
         return {'status': 'error', 'message': f'Server returned {response.status_code}'}
     except requests.exceptions.Timeout:
-        return {'status': 'error', 'message': 'Request timed out. Is the backend running?'}
+        return {'status': 'error', 'message': '⏱️ Request timed out. Backend may be slow or offline.'}
     except requests.exceptions.ConnectionError:
-        return {'status': 'error', 'message': 'Could not connect to backend. Start with: python backend/app.py'}
+        return {'status': 'error', 'message': '🔌 Backend is offline. Start it with: python backend/app.py'}
     except Exception as e:
         return {'status': 'error', 'message': str(e)}
 
@@ -237,7 +237,14 @@ def format_check_result(indicator: str, result: dict) -> str:
         fuzzy    = result.get('fuzzy_match', False)
         matched  = result.get('matched_domain', '') or result.get('matched_indicator', '')
         matched  = matched.replace('http://','').replace('https://','').replace('www.','').rstrip('/')
-        fuzzy_note = f"\n🔗 *Domain match:* `{matched}` is blacklisted" if (fuzzy and matched) else ''
+        # Show appropriate domain match note for email vs URL
+        if fuzzy and matched:
+            if '@' in indicator:
+                fuzzy_note = f"\n🌐 *Domain match:* `{matched}` is blacklisted"
+            else:
+                fuzzy_note = f"\n🔗 *Domain match:* `{matched}` is blacklisted"
+        else:
+            fuzzy_note = ''
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
@@ -321,6 +328,31 @@ async def submit_report_to_new_api(update, context):
         'telegram_user_id':  tg_user_id,
     }
 
+    # ── Step 0: Health check FIRST before anything else ─────────
+    # If backend is down, stop immediately — don't show false success
+    try:
+        ping = requests.get(f'{CSIP2_API_BASE}/health', timeout=3)
+        if ping.status_code != 200:
+            raise Exception(f'Backend returned {ping.status_code}')
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                f"❌ *Backend Offline*\n{DIVIDER}\n\n"
+                f"Could not reach the CSIP2 server.\n"
+                f"Your report was *not saved*.\n\n"
+                f"📌 `{indicator}`\n"
+                f"🏷️ Type: {scam_type}\n\n"
+                f"Ask admin to start the backend:\n"
+                f"`python backend/app.py`\n\n"
+                f"Then try 📢 *Report* again."
+            ),
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+        context.user_data.clear()
+        return
+
     # ── Step 1: Quick check to get current DB status (fast GET) ────────
     current_status = 'new'
     db_count       = 0
@@ -386,7 +418,6 @@ async def submit_report_to_new_api(update, context):
     )
 
     # ── Step 3: Fire POST /report in background ───────────────────────
-    # Debug: print what we're sending
     print(f'[report] Sending: type={payload.get("indicator_type")} indicator={payload.get("indicator","")[:40]}')
 
     def send_to_backend():

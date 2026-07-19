@@ -344,9 +344,37 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" placeholder="Quick search…" id="global-search">
       </div>
-      <div class="icon-btn" title="Notifications" onclick="showToast('No new notifications','info')">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <div class="notif-dot"></div>
+      <!-- Spike alert notification bell -->
+      <div id="notif-wrapper" style="position:relative">
+        <div class="icon-btn" title="Alerts" onclick="toggleNotifPanel()" id="notif-bell">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <div class="notif-dot" id="notif-dot" style="display:none;background:#f85149"></div>
+        </div>
+        <span id="notif-badge" style="
+          display:none;position:absolute;top:-4px;right:-4px;
+          background:#f85149;color:#fff;border-radius:50%;
+          width:16px;height:16px;font-size:9px;font-weight:700;
+          line-height:16px;text-align:center;pointer-events:none">0</span>
+
+        <!-- Dropdown panel -->
+        <div id="notif-panel" style="
+          display:none;position:absolute;top:calc(100% + 10px);right:-8px;
+          width:320px;background:var(--surface2);border:1px solid var(--border);
+          border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.4);
+          z-index:9999;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);
+                      display:flex;align-items:center;justify-content:space-between">
+            <span style="font-weight:700;font-size:0.85rem;color:var(--ink)">🔔 Spike Alerts</span>
+            <button onclick="clearNotifications()"
+              style="background:none;border:none;color:var(--ink-muted);font-size:0.75rem;
+                     cursor:pointer;font-family:inherit">Clear</button>
+          </div>
+          <div id="notif-list" style="max-height:320px;overflow-y:auto">
+            <div id="notif-empty" style="padding:20px 16px;text-align:center;color:var(--ink-muted);font-size:0.82rem">
+              No alerts yet
+            </div>
+          </div>
+        </div>
       </div>
       <a href="introduction.html" class="icon-btn" title="View site">
         <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -1420,7 +1448,11 @@ function renderReportsTable(data) {
       <td><span class="td-mono">${r.report_id}</span></td>
       <td>
         <span class="td-main">${r.title}</span>
-        ${r.url?`<div class="td-url">🔗 ${r.url}</div>`:''}
+        ${r.url          ? `<div class="td-url">🔗 ${r.url}</div>`          : ''}
+        ${r.phone_number ? `<div class="td-url">📞 ${r.phone_number}</div>` : ''}
+        ${r.email        ? `<div class="td-url">📧 ${r.email}</div>`        : ''}
+        ${(!r.url && !r.phone_number && !r.email && r.indicator)
+            ? `<div class="td-url">💬 ${r.indicator.substring(0,60)}</div>` : ''}
       </td>
       <td><span class="type-pill">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
       <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
@@ -1759,6 +1791,104 @@ function updateBadges(){
 // ─────────────────────────────────────────
 checkAuth();
 loadDashboard();
+
+// ── Notification System ───────────────────────────────────────
+let _notifSeen = new Set();
+
+function toggleNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    if (panel.style.display === 'block') {
+        // Mark all as seen
+        document.getElementById('notif-badge').style.display = 'none';
+    }
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', e => {
+    const wrapper = document.getElementById('notif-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        const panel = document.getElementById('notif-panel');
+        if (panel) panel.style.display = 'none';
+    }
+});
+
+function clearNotifications() {
+    _notifSeen.clear();
+    const list = document.getElementById('notif-list');
+    list.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--ink-muted);font-size:0.85rem">No alerts yet</div>';
+    document.getElementById('notif-badge').style.display = 'none';
+}
+
+async function pollNotifications() {
+    try {
+        // Direct fetch — no auth needed for notification endpoint
+        const res  = await fetch('http://localhost:5000/api/admin/notifications');
+        if (!res.ok) return;
+        const data = await res.json();
+        const notifs = data.notifications || [];
+        if (!notifs.length) return;
+
+        const list  = document.getElementById('notif-list');
+        const badge = document.getElementById('notif-badge');
+        let newCount = 0;
+
+        // Add new notifications to top
+        for (const n of notifs.reverse()) {
+            const key = `${n.indicator}:${n.timestamp}`;
+            if (_notifSeen.has(key)) continue;
+            _notifSeen.add(key);
+            newCount++;
+
+            const el = document.createElement('div');
+            el.style.cssText = 'padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);animation:fadeIn 0.3s ease';
+            el.innerHTML = `
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                    <span style="font-size:1.2rem;flex-shrink:0">🚨</span>
+                    <div style="flex:1">
+                        <div style="font-weight:700;font-size:0.85rem;color:#f85149;margin-bottom:3px">
+                            SPIKE ALERT
+                        </div>
+                        <div style="font-size:0.8rem;color:var(--ink);font-family:monospace;margin-bottom:4px">
+                            ${n.icon} ${n.indicator}
+                        </div>
+                        <div style="font-size:0.78rem;color:var(--ink-muted)">
+                            👥 <strong style="color:var(--ink)">${n.count} reports</strong>
+                            in ${n.minutes_span} min · ${n.scam_type}
+                        </div>
+                        <div style="font-size:0.72rem;color:var(--ink-muted);margin-top:3px">
+                            ${n.age_minutes < 1 ? 'Just now' : n.age_minutes + ' min ago'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Clear empty state
+            const empty = list.querySelector('div[style*="text-align:center"]');
+            if (empty) empty.remove();
+            list.insertBefore(el, list.firstChild);
+        }
+
+        if (newCount > 0) {
+            const panel = document.getElementById('notif-panel');
+            if (panel && panel.style.display === 'none') {
+                badge.style.display = 'block';
+                badge.textContent   = Math.min(newCount, 9) + (newCount > 9 ? '+' : '');
+                // Pulse animation
+                badge.style.animation = 'none';
+                badge.offsetHeight;
+                badge.style.animation = 'pulse 0.5s ease 3';
+            }
+        }
+    } catch(e) {
+        // Backend may be down — silent fail
+    }
+}
+
+// Poll every 30 seconds
+pollNotifications();
+setInterval(pollNotifications, 30000);
+
 </script>
 </body>
 </html>
