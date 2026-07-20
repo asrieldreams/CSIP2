@@ -198,27 +198,54 @@ async def scan_qr_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 def extract_indicators(text: str) -> dict:
-    # Match http/https URLs AND common patterns without protocol
+    # Match URLs with protocol, www, shorteners, AND bare domains
     url_pattern = re.compile(
         r'('
-        r'https?://[^\s\)\]\>\"\'<]+'           # http:// or https://
-        r'|www\.[^\s\)\]\>\"\'<]+'              # www.domain.com
-        r'|bit\.ly/[^\s\)\]\>\"\'<]+'           # bit.ly shortlinks
-        r'|t\.me/[^\s\)\]\>\"\'<]+'             # Telegram links
-        r'|wa\.me/[^\s\)\]\>\"\'<]+'            # WhatsApp links
-        r'|tinyurl\.com/[^\s\)\]\>\"\'<]+'      # tinyurl
-        r'|goo\.gl/[^\s\)\]\>\"\'<]+'           # goo.gl
+        r'https?://[^\s\)\]\>\"\'<,]+'          # http:// or https://
+        r'|www\.[^\s\)\]\>\"\'<,]+'             # www.domain.com
+        r'|bit\.ly/[^\s\)\]\>\"\'<,]+'          # bit.ly
+        r'|t\.me/[^\s\)\]\>\"\'<,]+'            # Telegram
+        r'|wa\.me/[^\s\)\]\>\"\'<,]+'           # WhatsApp
+        r'|tinyurl\.com/[^\s\)\]\>\"\'<,]+'     # tinyurl
+        r'|goo\.gl/[^\s\)\]\>\"\'<,]+'          # goo.gl
         r')'
+    )
+    # Bare domain pattern: word.tld (2-6 char TLD, no spaces, not email)
+    bare_domain_pattern = re.compile(
+        r'(?<![\w@])'              # not preceded by @ (not email)
+        r'([a-zA-Z0-9][a-zA-Z0-9\-]{0,62}'
+        r'(?:\.[a-zA-Z0-9\-]{1,63})+'
+        r'\.[a-zA-Z]{2,6})'        # ends with valid TLD
+        r'(?![\w@\/])'            # not followed by @ or path
     )
     phone_pattern = re.compile(r'(\+?65[\s\-]?\d{4}[\s\-]?\d{4}|\+?\d{8,15})')
 
     raw_urls = url_pattern.findall(text)
-    # Normalize — add http:// if missing
     urls = []
-    for u in set(raw_urls):
+    seen = set()
+    for u in raw_urls:
         if not u.startswith('http'):
             u = 'http://' + u
-        urls.append(u)
+        if u not in seen:
+            seen.add(u)
+            urls.append(u)
+
+    # Also check bare domains (skip common safe ones)
+    SAFE_DOMAINS = {
+        'google.com','facebook.com','youtube.com','instagram.com',
+        'whatsapp.com','telegram.org','apple.com','microsoft.com',
+        'amazon.com','tiktok.com','twitter.com','x.com','linkedin.com',
+        'gov.sg','edu.sg','org.sg','com.sg',
+    }
+    for match in bare_domain_pattern.finditer(text):
+        domain = match.group(1).lower()
+        if domain in SAFE_DOMAINS:
+            continue
+        # Skip if already captured with http://
+        url = 'http://' + domain
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
 
     phones = list(set([
         re.sub(r'[\s\-]', '', p)
@@ -323,6 +350,22 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+
+
+async def grouptest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Test if bot can see messages in this group."""
+    chat = update.effective_chat
+    if chat.type in ('group', 'supergroup'):
+        await update.message.reply_text(
+            f"✅ *Group scan is ACTIVE*\n"
+            f"Chat: {chat.title}\n\n"
+            f"Now send any URL WITHOUT /check and I should detect it.\n"
+            f"Example: `group-scam-test.com`",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text("This command is for groups only.")
+
 async def handle_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Greet the group when bot is added."""
     for member in update.message.new_chat_members:
@@ -350,6 +393,7 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Scan group messages for scam indicators and warn silently."""
     msg  = update.message
     text = msg.text or msg.caption or ''
+    print(f'[group_scan] Received: {repr(text[:60])} in chat {msg.chat.title}')
     if not text:
         return
 
@@ -436,18 +480,28 @@ async def group_scan_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=keyboard,
     )
 
-    # Auto-delete confirmed scam warnings after 120 seconds
-    # (suspected stay longer so people can read)
+    # Auto-delete confirmed scam warning after 60 seconds
+    # threading.Timer + direct Telegram API = no asyncio issues
     if flagged_bl:
-        async def delete_later():
-            import asyncio
-            await asyncio.sleep(120)
+        import threading as _th
+        _cid   = sent.chat_id
+        _mid   = sent.message_id
+        _token = TELEGRAM_BOT_TOKEN
+        def _delete():
             try:
-                await sent.delete()
-            except Exception:
-                pass
-        import asyncio
-        asyncio.create_task(delete_later())
+                requests.post(
+                    f'https://api.telegram.org/bot{_token}/deleteMessage',
+                    json={'chat_id': _cid, 'message_id': _mid},
+                    timeout=5
+                )
+                print(f'[group] ✅ Deleted warning {_mid}')
+            except Exception as _e:
+                print(f'[group] Delete failed: {_e}')
+        _t = _th.Timer(60, _delete)
+        _t.daemon = True
+        _t.start()
+        print(f'[group] ⏱ Delete in 60s (msg {_mid})')
+        print(f'[group] Scheduled auto-delete in 60s for msg {sent.message_id}')
 
 
 # ============================================================
@@ -1348,6 +1402,8 @@ def main():
     app.add_handler(report_conv)
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
+
+
     # ── Menu buttons ──────────────────────────────────────
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE &
@@ -1387,6 +1443,8 @@ def main():
         auto_scan_message
     ))
 
+    app.add_handler(CommandHandler('grouptest', grouptest_command))
+
     # ── Group scan ────────────────────────────────────────
     # Welcome message when bot joins group
     app.add_handler(MessageHandler(
@@ -1399,11 +1457,16 @@ def main():
         group_scan_message
     ))
 
-    print("🤖 CSIP2 Bot is running...")
+    # Confirm job_queue is active
+    if app.job_queue:
+        print("🤖 CSIP2 Bot is running... (job_queue ✅)")
+    else:
+        print("⚠️  job_queue not available — auto-delete disabled")
+        print("   Run: pip install python-telegram-bot[job-queue]")
     # Start spike alert poller in background thread
     poll_spike_alerts_sync()
 
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == '__main__':

@@ -173,10 +173,113 @@ def submit_report():
 
     try:
         conn = get_connection()
+        # Check for previously rejected record
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, admin_classified, admin_locked,
+                       COALESCE(rejection_count, 0) as rejection_count
+                FROM reports
+                WHERE indicator = %s AND status = 'rejected'
+                LIMIT 1
+            """, (indicator,))
+            rejected = cursor.fetchone()
+
+        if rejected:
+            rid             = rejected['id']
+            admin_reviewed  = rejected.get('admin_classified', 0)
+            locked          = rejected.get('admin_locked', 0)
+            rejection_count = rejected.get('rejection_count', 0)
+
+            # Case 1: Admin explicitly reviewed & rejected — permanently blocked
+            if admin_reviewed or locked:
+                print(f'[report] Blocked: admin-reviewed rejection for {indicator}')
+                return jsonify({
+                    'error': 'This indicator was reviewed and rejected by our admin team. '
+                             'If you believe this is a scam, contact the admin directly.',
+                    'blocked': True
+                }), 409
+
+            # Case 2: Repeatedly submitted after rejection (3+ times) — block it
+            if rejection_count >= 2:
+                # Lock it down to prevent abuse
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET admin_classified=1 WHERE id=%s",
+                        (rid,)
+                    )
+                conn.commit()
+                print(f'[report] Blocked: {indicator} rejected {rejection_count+1}x — now locked')
+                return jsonify({
+                    'error': 'This indicator has been repeatedly reviewed and rejected. '
+                             'It has been permanently blocked from re-submission.',
+                    'blocked': True
+                }), 409
+
+            # Case 3: Not admin-reviewed, first/second re-report — allow reactivation
+            with conn.cursor() as cursor:
+                # Core update — columns guaranteed to exist
+                cursor.execute("""
+                    UPDATE reports
+                    SET status = 'pending',
+                        list_type = NULL,
+                        report_count = 1,
+                        scam_type = %s,
+                        severity = %s,
+                        description = %s,
+                        submitted_at = NOW(),
+                        false_report_count = 0,
+                        admin_classified = 0,
+                        admin_locked = 0
+                    WHERE id = %s
+                """, (
+                    data.get('scam_type', 'Others'),
+                    data.get('severity', 'medium'),
+                    description,
+                    rid
+                ))
+            conn.commit()
+            # Optional columns — silently skip if they don't exist yet
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE reports SET platform=%s, last_reported_at=NOW(), "
+                        "telegram_user_id=%s WHERE id=%s",
+                        (data.get('platform','website'), data.get('telegram_user_id'), rid)
+                    )
+                conn.commit()
+            except Exception:
+                pass
+            print(f'[report] Reactivated rejected record {rid} (rejection #{rejection_count+1}) for {indicator}')
+            return jsonify({
+                'message': 'Report submitted. Pending admin review.',
+                'report_id': f"SS-{str(rid).zfill(5)}",
+                'duplicate': False,
+                'reactivated': True,
+            }), 201
+
+        # Build URL variants to check (http/https, www/no-www, slash/no-slash)
+        def _url_variants(u):
+            u = u.rstrip('/')
+            variants = set()
+            for proto in ('http://', 'https://'):
+                if u.startswith('http://') or u.startswith('https://'):
+                    rest = u.split('://', 1)[1]
+                else:
+                    rest = u
+                rest_nw = rest[4:] if rest.startswith('www.') else rest
+                rest_ww = 'www.' + rest_nw
+                for r in (rest_nw, rest_ww):
+                    variants.add(proto + r)
+                    variants.add(proto + r + '/')
+            return list(variants)
+
+        dup_variants = _url_variants(indicator) if indicator.startswith('http') else [indicator]
+        dup_ph       = ','.join(['%s'] * len(dup_variants))
+
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT id, status FROM reports WHERE indicator = %s AND status != 'rejected' LIMIT 1",
-                (indicator,)
+                f"SELECT id, status, list_type FROM reports WHERE indicator IN ({dup_ph}) AND status != 'rejected' LIMIT 1",
+                dup_variants
             )
             existing = cursor.fetchone()
 
@@ -633,6 +736,87 @@ def check_indicator():
                                 'scam_type':    pending.get('scam_type', 'Unknown'),
                                 'report_count': pending.get('report_count', 1),
                                 'message': 'This indicator is pending admin review.'}), 200
+            # ── Redirect check ───────────────────────────────────────
+            # Follow redirects manually to capture final URL
+            # even if final destination is unreachable (e.g. real scam site)
+            if indicator.startswith('http'):
+                final_url = None
+                try:
+                    # Disable auto-redirect so we can capture each hop manually
+                    sess = requests.Session()
+                    sess.max_redirects = 10
+                    current = indicator
+                    for _ in range(10):
+                        try:
+                            resp = sess.get(
+                                current,
+                                timeout=3,
+                                allow_redirects=False,
+                                headers={'User-Agent': 'Mozilla/5.0'},
+                                stream=True
+                            )
+                            resp.close()
+                            if resp.status_code in (301, 302, 303, 307, 308):
+                                loc = resp.headers.get('Location', '')
+                                if not loc:
+                                    break
+                                # Handle relative redirects
+                                if loc.startswith('/'):
+                                    from urllib.parse import urljoin
+                                    loc = urljoin(current, loc)
+                                final_url = loc
+                                current   = loc
+                            else:
+                                # No more redirects
+                                if current != indicator:
+                                    final_url = current
+                                break
+                        except Exception:
+                            # Connection failed at this hop — but we have last known URL
+                            if current != indicator:
+                                final_url = current
+                            break
+                except Exception as _re:
+                    print(f'[check:redir] Session error: {_re}')
+
+                # Check if final destination is flagged
+                if final_url and final_url.rstrip('/') != indicator.rstrip('/'):
+                    print(f'[check:redir] {indicator} → {final_url}')
+                    try:
+                        _fn  = normalize_indicator(final_url)
+                        _fvs = []
+                        for _p in ('http://', 'https://'):
+                            for _pfx in ('', 'www.'):
+                                _base = _p + _pfx + _fn.split('://')[-1].lstrip('www.')
+                                _fvs.append(_base)
+                                _fvs.append(_base + '/')
+                        _fph = ','.join(['%s'] * len(_fvs))
+                        with conn.cursor() as _cur:
+                            _cur.execute(
+                                f"SELECT list_type, scam_type, description, severity, "
+                                f"COALESCE(report_count,1) as report_count "
+                                f"FROM reports WHERE indicator IN ({_fph}) "
+                                f"AND status='approved' LIMIT 1",
+                                _fvs
+                            )
+                            redir_row = _cur.fetchone()
+                        if redir_row:
+                            _st   = redir_row['list_type']
+                            _desc = (redir_row.get('description') or '') + f' (Redirected from {indicator})'
+                            return jsonify({
+                                'status':       _st,
+                                'indicator':    indicator,
+                                'final_url':    final_url,
+                                'scam_type':    redir_row.get('scam_type', 'Unknown'),
+                                'description':  _desc,
+                                'severity':     redir_row.get('severity') or 'high',
+                                'report_count': redir_row.get('report_count', 1),
+                                'redirect':     True,
+                                'message':      f'Redirects to {_st} site: {final_url}'
+                            }), 200
+                    except Exception as _re2:
+                        print(f'[check:redir:db] {_re2}')
+
             return jsonify({'status': 'clean', 'indicator': indicator,
                             'message': 'No reports found.'}), 200
 

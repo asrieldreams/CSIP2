@@ -132,6 +132,10 @@ def report_to_scam(r):
         'platform':       r.get('platform') or r.get('source', 'website'),
         'url':            indicator if ind_type == 'url'   else None,
         'phone_number':   indicator if ind_type == 'phone' else None,
+        'email':          indicator if ind_type == 'email' else None,
+        # Universal indicator field for all types
+        'indicator':      indicator,
+        'indicator_type': ind_type,
         'amount_lost':    amount,
         'incident_date':  inc_date,
         'report_count':      r.get('report_count') or 1,
@@ -689,26 +693,24 @@ def api_admin_patch_report(report_id):
         except Exception:
             pass
 
-        # If removed/rejected → reset report_count and clear votes
-        # Count should only reflect valid community reports, not rejected ones
+        # If removed/rejected → reset count, clear votes, increment rejection_count
         if status == 'removed':
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "UPDATE reports SET report_count = 0 WHERE id = %s",
+                        "UPDATE reports SET report_count = 0, "                        "rejection_count = COALESCE(rejection_count, 0) + 1 "                        "WHERE id = %s",
                         (report_id,)
                     )
                 conn.commit()
-                # Clear all votes for this report
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "DELETE FROM report_votes WHERE report_id = %s",
                         (report_id,)
                     )
                 conn.commit()
-                print(f'[admin] Cleared report_count and votes for rejected report {report_id}')
+                print(f'[admin] Rejected report {report_id} — rejection_count incremented')
             except Exception as e:
-                print(f'[admin] Count reset error: {e}')
+                print(f'[admin] Reject reset error: {e}')
 
         action_label = {
             'verified': 'Verified',

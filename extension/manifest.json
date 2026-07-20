@@ -39,7 +39,7 @@
   }],
 
   "web_accessible_resources": [{
-    "resources": ["warning.html"],
+    "resources": ["warning.html", "warning.js"],
     "matches":   ["<all_urls>"]
   }]
 }

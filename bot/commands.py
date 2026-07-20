@@ -759,12 +759,27 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Check if user was in an active flow
+    in_flow = bool(context.user_data)
     context.user_data.clear()
+
+    if in_flow:
+        msg = (
+            f"❌ *Cancelled*\n"
+            f"{DIVIDER}\n"
+            f"Your action has been cancelled.\n"
+            f"Tap any button below to continue"
+        )
+    else:
+        msg = (
+            f"✅ *Nothing to cancel*\n"
+            f"{DIVIDER}\n"
+            f"No active report or check.\n"
+            f"Here's what you can do:"
+        )
+
     await update.message.reply_text(
-        f"❌ *Report Cancelled*\n"
-        f"{DIVIDER}\n"
-        f"No report was submitted\n"
-        f"Tap any button below to continue",
+        msg,
         parse_mode='Markdown',
         reply_markup=get_main_menu()
     )
@@ -772,6 +787,19 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cmd = (update.message.text or '').split()[0].lower().lstrip('/')
+    # /cancel outside a flow — handled here instead of showing "Unknown Command"
+    if 'cancel' in cmd:
+        context.user_data.clear()
+        await update.message.reply_text(
+            f"✅ *Nothing to cancel*\n"
+            f"{DIVIDER}\n"
+            f"No active report or check.\n"
+            f"Here's what you can do:",
+            parse_mode='Markdown',
+            reply_markup=get_main_menu()
+        )
+        return
     await update.message.reply_text(
         f"❓ *Unknown Command*\n"
         f"{DIVIDER}\n"

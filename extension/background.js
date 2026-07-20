@@ -269,14 +269,37 @@ async function _unused_old_inject(tabId, url, data) {
 
 // ── Core check function ───────────────────────────────────
 
-const _warned = new Set();
+const _warned      = new Set();
+const _allowedOnce = new Set(); // URLs user chose to proceed despite warning
 
 async function checkUrl(tabId, rawUrl) {
     if (!rawUrl || shouldSkip(rawUrl)) return;
 
     const url = normalizeUrl(rawUrl);
     const key = `${tabId}:${url}`;
-    if (_warned.has(key)) return;
+    // Skip if currently on warning page (prevents redirect loop)
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (tab && tab.url && tab.url.includes('warning.html')) return;
+
+    // Skip if user clicked "Proceed Anyway" for this URL (stored in chrome.storage)
+    const allowedData = await chrome.storage.local.get(['csip2_allowed_once', 'csip2_allowed_until']);
+    const allowedList  = allowedData.csip2_allowed_once  || [];
+    const allowedUntil = allowedData.csip2_allowed_until || 0;
+
+    if (allowedList.includes(url) && Date.now() < allowedUntil) {
+        // Remove from list after one use
+        const newList = allowedList.filter(u => u !== url);
+        chrome.storage.local.set({ csip2_allowed_once: newList });
+        console.log('[CSIP2] Proceed allowed for:', url);
+        return;
+    } else if (Date.now() >= allowedUntil) {
+        // Expired — clear storage
+        chrome.storage.local.remove(['csip2_allowed_once', 'csip2_allowed_until']);
+    }
+
+    if (_warned.has(key)) {
+        _warned.delete(key); // Allow re-warning on next visit
+    }
 
     console.log('[CSIP2] Checking:', url);
 
@@ -291,20 +314,25 @@ async function checkUrl(tabId, rawUrl) {
 
         if (data.status === 'blacklist') {
             // ── Full warning page for CONFIRMED scams ──────
+            // Add to _warned temporarily to prevent redirect loop
+            // Will be cleared on next navigation to this URL
             _warned.add(key);
             const count  = await incrementBlockedCount();
-            const detail = encodeURIComponent(JSON.stringify({
+            // Store data in chrome.storage.session so warning.html can read it
+            const warningData = {
                 url:       url,
                 scam_type: data.scam_type   || 'Unknown',
                 desc:      data.description || 'Confirmed scam indicator',
                 count:     count,
-            }));
-            const warningUrl = chrome.runtime.getURL(`warning.html?d=${detail}`);
-            chrome.tabs.update(tabId, { url: warningUrl });
+            };
+            chrome.storage.local.set({ csip2_warning: warningData }, () => {
+                const warningUrl = chrome.runtime.getURL('warning.html');
+                chrome.tabs.update(tabId, { url: warningUrl });
+            });
 
         } else if (data.status === 'whitelist') {
             // ── Banner warning for SUSPECTED scams ─────────
-            _warned.add(key);
+            // Don't add suspected URLs to _warned — show banner on every visit
             chrome.action.setBadgeText({ text: '⚠', tabId });
             chrome.action.setBadgeBackgroundColor({ color: '#d29922', tabId });
             // Inject floating banner on the page
@@ -363,6 +391,32 @@ chrome.tabs.onRemoved.addListener(tabId => {
     for (const key of _warned) {
         if (key.startsWith(`${tabId}:`)) _warned.delete(key);
     }
+});
+
+// Handle messages from warning.html — allow URL once when user proceeds
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === 'allowUrlOnce' && msg.url) {
+        // Use chrome.storage so it survives service worker restarts
+        const url = msg.url;
+        const alt = url.startsWith('https://')
+            ? url.replace('https://', 'http://')
+            : url.replace('http://', 'https://');
+
+        chrome.storage.local.get('csip2_allowed_once', (data) => {
+            const allowed = data.csip2_allowed_once || [];
+            allowed.push(url, alt);
+            // Auto-expire after 30 seconds
+            chrome.storage.local.set({
+                csip2_allowed_once: allowed,
+                csip2_allowed_until: Date.now() + 30000
+            }, () => {
+                console.log('[CSIP2] Allowed once (storage):', url);
+                sendResponse({ ok: true });
+            });
+        });
+        return true; // Keep channel open for async response
+    }
+    return true;
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
