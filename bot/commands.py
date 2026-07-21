@@ -149,6 +149,63 @@ def is_valid_email(text: str) -> bool:
     return '@' in text and '.' in text.split('@')[-1] and len(text) > 5
 
 
+
+# ── Country code detection for phone numbers ─────────────────
+COUNTRY_CODES = {
+    # ASEAN
+    '65': ('🇸🇬', 'Singapore'),
+    '60': ('🇲🇾', 'Malaysia'),
+    '66': ('🇹🇭', 'Thailand'),
+    '62': ('🇮🇩', 'Indonesia'),
+    '63': ('🇵🇭', 'Philippines'),
+    '84': ('🇻🇳', 'Vietnam'),
+    '95': ('🇲🇲', 'Myanmar'),
+    '855': ('🇰🇭', 'Cambodia'),
+    '856': ('🇱🇦', 'Laos'),
+    '673': ('🇧🇳', 'Brunei'),
+    # Common scam origins
+    '1': ('🇺🇸', 'USA/Canada'),
+    '44': ('🇬🇧', 'United Kingdom'),
+    '91': ('🇮🇳', 'India'),
+    '86': ('🇨🇳', 'China'),
+    '82': ('🇰🇷', 'South Korea'),
+    '81': ('🇯🇵', 'Japan'),
+    '61': ('🇦🇺', 'Australia'),
+    '64': ('🇳🇿', 'New Zealand'),
+    '27': ('🇿🇦', 'South Africa'),
+    '234': ('🇳🇬', 'Nigeria'),
+    '254': ('🇰🇪', 'Kenya'),
+    '49': ('🇩🇪', 'Germany'),
+    '33': ('🇫🇷', 'France'),
+    '34': ('🇪🇸', 'Spain'),
+    '39': ('🇮🇹', 'Italy'),
+    '7': ('🇷🇺', 'Russia'),
+    '55': ('🇧🇷', 'Brazil'),
+    '52': ('🇲🇽', 'Mexico'),
+    '971': ('🇦🇪', 'UAE'),
+    '966': ('🇸🇦', 'Saudi Arabia'),
+    '852': ('🇭🇰', 'Hong Kong'),
+    '886': ('🇹🇼', 'Taiwan'),
+}
+
+def detect_country_code(phone: str) -> tuple:
+    """Returns (flag, country_name, local_number) or ('🌐', 'Unknown', phone)."""
+    # Strip formatting
+    import re as _re
+    cleaned = _re.sub(r'[\s\-\(\)]', '', phone)
+    if cleaned.startswith('+'):
+        cleaned = cleaned[1:]
+
+    # Try longest prefix first (3 digits → 2 → 1)
+    for length in (3, 2, 1):
+        prefix = cleaned[:length]
+        if prefix in COUNTRY_CODES:
+            flag, country = COUNTRY_CODES[prefix]
+            local = cleaned[length:]
+            return flag, country, local
+
+    return '🌐', 'Unknown', cleaned
+
 def validate_indicator(indicator: str, ind_type: str) -> tuple[bool, str]:
     """
     Returns (is_valid, error_message).
@@ -225,6 +282,15 @@ def check_single_indicator_sync(indicator: str) -> dict:
         return {'status': 'error', 'message': str(e)}
 
 
+
+def _get_ind_icon(indicator: str) -> str:
+    """Return icon + country flag for phone, or 📧/🔗 for email/url."""
+    cleaned = indicator.replace('+','').replace(' ','').replace('-','').replace('(','').replace(')','')
+    if cleaned.isdigit():
+        flag, country, _ = detect_country_code(indicator)
+        return f'📞 {flag}'
+    return '📧' if '@' in indicator else '🔗'
+
 def format_check_result(indicator: str, result: dict) -> str:
     status = result.get('status')
     scam_type = result.get('scam_type', 'Unknown')
@@ -248,7 +314,7 @@ def format_check_result(indicator: str, result: dict) -> str:
         return (
             f"🚨 *BLACKLISTED — CONFIRMED SCAM*\n"
             f"{DIVIDER}\n"
-            f"{'📞' if indicator.replace('+','').replace(' ','').replace('-','').isdigit() else '📧' if '@' in indicator else '🔗'} `{indicator}`{fuzzy_note}\n\n"
+            f"{_get_ind_icon(indicator)} `{indicator}`{fuzzy_note}\n\n"
             f"📌 *Scam Type:* {scam_type}\n"
             f"{sev_icon} *Severity:* {severity}\n"
             f"📝 *Details:* {description if description else 'No details available'}\n"
@@ -282,15 +348,27 @@ def format_check_result(indicator: str, result: dict) -> str:
             f"`python backend/app.py`"
         )
 
+    elif status == 'typosquat':
+        trusted  = result.get('trusted', 'a trusted domain')
+        note     = result.get('note', '')
+        return (
+            f"⚠️ *POSSIBLE FAKE SITE DETECTED*\n"
+            f"{DIVIDER}\n"
+            f"🔗 `{indicator}`\n\n"
+            f"🚨 *Typosquatting Alert*\n"
+            f"This looks like a fake version of:\n"
+            f"✅ `{trusted}` ← *legitimate*\n"
+            f"❌ `{indicator}` ← *suspicious*\n\n"
+            f"📌 Scam Type: Impersonation\n\n"
+            f"⚠️ Scammers create lookalike domains to steal credentials.\n"
+            f"Always verify the URL before entering any information.\n\n"
+            f"💡 If this is a scam, use 📢 *Report* to submit it."
+        )
+
     else:
         # clean — not in database
-        # Show appropriate icon based on indicator type
-        if indicator.replace('+','').replace(' ','').replace('-','').isdigit():
-            ind_icon = '📞'
-        elif '@' in indicator:
-            ind_icon = '📧'
-        else:
-            ind_icon = '🔗'
+        # Show appropriate icon with country flag for phones
+        ind_icon = _get_ind_icon(indicator)
         return (
             f"✅ *Not Found in Database*\n"
             f"{DIVIDER}\n"

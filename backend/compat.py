@@ -9,6 +9,32 @@ import secrets
 from datetime import datetime
 from functools import wraps
 from flask import Blueprint, request, jsonify, session
+from datetime import datetime
+
+def log_audit(action, target='', target_id=None, target_type='report',
+              detail='', admin_name='Admin', ip=None):
+    """Insert one row into audit_logs. Never raises — logs errors silently."""
+    try:
+        from db import get_connection as _gc
+        conn = _gc()
+        with conn.cursor() as c:
+            c.execute("""
+                INSERT INTO audit_logs
+                    (action, target, target_id, target_type, detail, admin_name, ip_address)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                str(action)[:100],
+                str(target)[:100],
+                target_id,
+                str(target_type)[:50],
+                str(detail)[:500],
+                str(admin_name)[:100],
+                str(ip or '')[:45],
+            ))
+        conn.commit()
+        conn.close()
+    except Exception as _ae:
+        print(f'[audit] {_ae}')
 from db import get_connection
 
 compat_bp = Blueprint('compat', __name__)
@@ -188,6 +214,13 @@ def api_login():
             session['admin_logged_in'] = True
             session['admin_id']        = row['id']
             session['admin_username']  = row['name']
+            log_audit(
+                action     = 'Admin Login',
+                target     = row['name'],
+                detail     = f"Login from {request.remote_addr}",
+                admin_name = row['name'],
+                ip         = request.remote_addr,
+            )
             return jsonify({'token': token, 'admin': admin_data}), 200
         else:
             return jsonify({'error': 'Invalid email or password'}), 401
@@ -662,10 +695,27 @@ def api_admin_patch_report(report_id):
 
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT indicator, scam_type FROM reports WHERE id = %s",
+                "SELECT indicator, scam_type, status, list_type FROM reports WHERE id = %s",
                 (report_id,)
             )
             rpt = cursor.fetchone()
+
+        # Build human-readable "before" label from current DB state
+        if rpt:
+            _old_status    = rpt.get('status', '')
+            _old_list_type = rpt.get('list_type', '')
+            if _old_status == 'approved' and _old_list_type == 'blacklist':
+                old_label = 'Confirmed'
+            elif _old_status == 'approved' and _old_list_type == 'whitelist':
+                old_label = 'Suspected'
+            elif _old_status == 'pending':
+                old_label = 'Pending'
+            elif _old_status == 'rejected':
+                old_label = 'Removed'
+            else:
+                old_label = _old_status.capitalize()
+        else:
+            old_label = 'Unknown'
 
         # Build update — only set severity if admin explicitly chose one
         with conn.cursor() as cursor:
@@ -712,24 +762,28 @@ def api_admin_patch_report(report_id):
             except Exception as e:
                 print(f'[admin] Reject reset error: {e}')
 
-        action_label = {
-            'verified': 'Verified',
-            'flagged':  'Flagged',
+        new_label = {
+            'verified': 'Confirmed',
+            'flagged':  'Suspected',
             'removed':  'Removed',
-            'pending':  'Reverted to Pending',
-        }.get(status, 'Updated')
+            'pending':  'Pending',
+        }.get(status, new_status.capitalize())
+
+        action_label = f'Changed: {old_label} → {new_label}'
 
         try:
+            _admin_name = current_admin if isinstance(current_admin, str) else                           (current_admin.get('username','Admin') if isinstance(current_admin,dict) else 'Admin')
             log_audit(
                 action      = action_label,
                 target      = f"SS-{str(report_id).zfill(5)}",
                 target_id   = report_id,
                 target_type = 'report',
-                detail      = f"{rpt['scam_type']}: {rpt['indicator'][:50]}" if rpt else '',
-                admin       = current_admin
+                detail      = (f"{rpt['scam_type']}: {rpt['indicator'][:50]}" if rpt else ''),
+                admin_name  = _admin_name,
+                ip          = request.remote_addr,
             )
         except Exception as audit_err:
-            print(f'[audit] {audit_err}')  # Log but never break the response
+            print(f'[audit] {audit_err}')
 
         return jsonify({'message': f'Report {report_id} → {new_status}'}), 200
     except Exception as e:
@@ -742,10 +796,20 @@ def api_admin_delete_report(report_id):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
+            cursor.execute("SELECT indicator, scam_type FROM reports WHERE id=%s", (report_id,))
+            rpt = cursor.fetchone()
             cursor.execute(
                 "UPDATE reports SET status = 'rejected' WHERE id = %s", (report_id,)
             )
         conn.commit()
+        log_audit(
+            action     = 'Removed',
+            target     = f"SS-{str(report_id).zfill(5)}",
+            target_id  = report_id,
+            detail     = f"{rpt['scam_type']}: {rpt['indicator'][:50]}" if rpt else '',
+            admin_name = session.get('admin_name', 'Admin'),
+            ip         = request.remote_addr,
+        )
         return jsonify({'message': f'Report {report_id} removed'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -774,6 +838,19 @@ def api_admin_bulk():
                     (new_status, list_type, severity, rid)
                 )
         conn.commit()
+        action_label = {
+            'verified': 'Verified',
+            'flagged':  'Flagged',
+            'pending':  'Reverted to Pending',
+            'removed':  'Removed',
+        }.get(status, 'Updated')
+        log_audit(
+            action     = f'Bulk {action_label}',
+            target     = f"{len(ids)} reports",
+            detail     = f"IDs: {', '.join(str(i) for i in ids[:10])}{'…' if len(ids)>10 else ''}",
+            admin_name = session.get('admin_name', 'Admin'),
+            ip         = request.remote_addr,
+        )
         return jsonify({'message': f'{len(ids)} reports updated'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -861,6 +938,13 @@ def api_add_indicator():
                 VALUES (%s, %s, 'manual')
             """, (data.get('value', ''), data.get('type', 'URL')))
         conn.commit()
+        log_audit(
+            action     = 'Indicator Added',
+            target     = data.get('value', '')[:60],
+            detail     = f"Type: {data.get('type', 'URL')}",
+            admin_name = session.get('admin_name', 'Admin'),
+            ip         = request.remote_addr,
+        )
         return jsonify({'message': 'Indicator added'}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -874,6 +958,14 @@ def api_delete_indicator(iid):
         with conn.cursor() as cursor:
             cursor.execute("DELETE FROM scanner_indicators WHERE id = %s", (iid,))
         conn.commit()
+        log_audit(
+            action     = 'Indicator Deleted',
+            target     = f"IND-{iid}",
+            target_id  = iid,
+            detail     = 'Scanner indicator removed',
+            admin_name = session.get('admin_name', 'Admin'),
+            ip         = request.remote_addr,
+        )
         return jsonify({'message': 'Deleted'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -951,8 +1043,8 @@ def api_false_report(report_id):
                     action='Community Demoted',
                     target=f"SS-{str(report_id).zfill(5)}",
                     target_id=report_id,
+                    admin_name='System',
                     detail=f"Suspected → Pending after {new_false_count} false report votes",
-                    admin=current_admin
                 )
 
             elif row['status'] == 'pending':
@@ -972,7 +1064,7 @@ def api_false_report(report_id):
                     target=f"SS-{str(report_id).zfill(5)}",
                     target_id=report_id,
                     detail=f"Pending report received {new_false_count} false votes — needs admin review",
-                    admin=current_admin
+                    admin_name=session.get('admin_name', 'Admin')
                 )
 
         return jsonify({
@@ -993,7 +1085,106 @@ def api_false_report(report_id):
 @compat_bp.route('/api/admin/audit-log', methods=['GET'])
 @require_token
 def api_audit_log():
-    return jsonify({'data': [], 'total': 0}), 200
+    """Return paginated audit log with search + action + admin filters."""
+    try:
+        from db import get_connection as _gc
+        page       = max(1, int(request.args.get('page', 1)))
+        per_page   = min(50, int(request.args.get('per_page', 20)))
+        action_f   = request.args.get('action', '').strip()
+        admin_f    = request.args.get('admin', '').strip()
+        search_f   = request.args.get('search', '').strip()
+
+        where, params = [], []
+        if action_f:
+            # Support partial match for "Changed: X → Y" format
+            change_targets = {
+                'Confirmed': '→ Confirmed',
+                'Suspected':  '→ Suspected',
+                'Removed':    '→ Removed',
+                'Pending':    '→ Pending',
+                'Login':      'Login',
+                'Community':  'Community',
+                'Bulk':       'Bulk',
+            }
+            if action_f in change_targets:
+                where.append('action LIKE %s')
+                params.append(f'%{change_targets[action_f]}%')
+            else:
+                where.append('action = %s')
+                params.append(action_f)
+        if admin_f:
+            where.append('admin_name = %s');       params.append(admin_f)
+        if search_f:
+            where.append('(target LIKE %s OR detail LIKE %s OR action LIKE %s)')
+            like = f'%{search_f}%'
+            params += [like, like, like]
+
+        where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
+        offset    = (page - 1) * per_page
+
+        conn = _gc()
+        with conn.cursor() as c:
+            c.execute(f'SELECT COUNT(*) as n FROM audit_logs {where_sql}', params)
+            total = c.fetchone()['n']
+
+            c.execute(f"""
+                SELECT id, action, target, target_id, target_type,
+                       detail, admin_name, ip_address, created_at
+                FROM audit_logs {where_sql}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, params + [per_page, offset])
+            rows = c.fetchall()
+
+        conn.close()
+
+        # Build distinct action + admin lists for filter dropdowns
+        conn2 = _gc()
+        with conn2.cursor() as c:
+            c.execute('SELECT DISTINCT action FROM audit_logs ORDER BY action')
+            actions = [r['action'] for r in c.fetchall()]
+            c.execute('SELECT DISTINCT admin_name FROM audit_logs ORDER BY admin_name')
+            admins  = [r['admin_name'] for r in c.fetchall()]
+        conn2.close()
+
+        def fmt(row):
+            created = row.get('created_at')
+            return {
+                'id':          row['id'],
+                'action':      row['action'],
+                'target':      row.get('target', ''),
+                'target_id':   row.get('target_id'),
+                'detail':      row.get('detail', ''),
+                'admin':       row.get('admin_name', 'Admin'),
+                'ip':          row.get('ip_address', ''),
+                'created_at':  created.isoformat() if created else '',
+                'time_ago':    _time_ago(created) if created else '',
+            }
+
+        return jsonify({
+            'data':     [fmt(r) for r in rows],
+            'total':    total,
+            'page':     page,
+            'per_page': per_page,
+            'pages':    max(1, -(-total // per_page)),
+            'actions':  actions,
+            'admins':   admins,
+        }), 200
+
+    except Exception as e:
+        return jsonify({'data': [], 'total': 0, 'error': str(e)}), 200
+
+
+def _time_ago(dt):
+    """Human-readable time difference."""
+    if not dt:
+        return ''
+    diff = datetime.utcnow() - dt.replace(tzinfo=None) if hasattr(dt, 'tzinfo') else datetime.utcnow() - dt
+    secs = int(diff.total_seconds())
+    if secs < 60:    return 'just now'
+    if secs < 3600:  return f'{secs//60}m ago'
+    if secs < 86400: return f'{secs//3600}h ago'
+    return f'{secs//86400}d ago'
 
 @compat_bp.route('/api/admin/spam', methods=['GET'])
 @require_token

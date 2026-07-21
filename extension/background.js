@@ -64,9 +64,13 @@ function normalizeUrl(url) {
 
 function shouldSkip(url) {
     if (SKIP_PREFIXES.some(p => url.startsWith(p))) return true;
-    // Skip mail providers — email scanner in content.js handles these
+    // Skip local files — extension shouldn't scan the user's own HTML files
+    if (url.startsWith('file://')) return true;
     try {
         const host = new URL(url).hostname;
+        // Skip localhost and 127.x — dev server, not real URLs to scan
+        if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.')) return true;
+        // Skip mail providers — email scanner in content.js handles these
         if (MAIL_DOMAINS.some(d => host === d || host.endsWith('.' + d))) return true;
     } catch { return false; }
     return false;
@@ -290,7 +294,6 @@ async function checkUrl(tabId, rawUrl) {
         // Remove from list after one use
         const newList = allowedList.filter(u => u !== url);
         chrome.storage.local.set({ csip2_allowed_once: newList });
-        console.log('[CSIP2] Proceed allowed for:', url);
         return;
     } else if (Date.now() >= allowedUntil) {
         // Expired — clear storage
@@ -301,7 +304,6 @@ async function checkUrl(tabId, rawUrl) {
         _warned.delete(key); // Allow re-warning on next visit
     }
 
-    console.log('[CSIP2] Checking:', url);
 
     try {
         const response = await fetch(
@@ -310,7 +312,6 @@ async function checkUrl(tabId, rawUrl) {
         );
         const data = await response.json();
 
-        console.log('[CSIP2] Result:', data.status, 'for', url);
 
         if (data.status === 'blacklist') {
             // ── Full warning page for CONFIRMED scams ──────
@@ -368,7 +369,6 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     const url = details.url;
     if (shouldSkip(url)) return;
     if (isShortener(url)) {
-        console.log('[CSIP2] Shortener detected:', url);
         await checkUrl(details.tabId, url);
         chrome.action.setBadgeText({ text: '⚠', tabId: details.tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#d29922', tabId: details.tabId });
@@ -410,7 +410,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 csip2_allowed_once: allowed,
                 csip2_allowed_until: Date.now() + 30000
             }, () => {
-                console.log('[CSIP2] Allowed once (storage):', url);
                 sendResponse({ ok: true });
             });
         });

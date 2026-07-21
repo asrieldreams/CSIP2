@@ -48,6 +48,60 @@ _SPIKE_THRESHOLD      = 3   # reports within window triggers alert
 _SPIKE_WINDOW         = 3600  # 1 hour
 _pending_notifications = []  # in-memory alert store — bot + dashboard poll this
 
+
+# ── Typosquatting detection ──────────────────────────────────────
+TRUSTED_DOMAINS = [
+    'singpass.gov.sg','myinfo.gov.sg','gov.sg','iras.gov.sg',
+    'cpf.gov.sg','hdb.gov.sg','police.gov.sg','moh.gov.sg',
+    'mom.gov.sg','mas.gov.sg','nea.gov.sg','lta.gov.sg',
+    'dbs.com','dbs.com.sg','posb.com.sg','ocbc.com.sg',
+    'uob.com.sg','maybank.com.sg','sc.com.sg',
+    'grab.com','shopee.sg','lazada.sg','carousell.sg',
+    'singtel.com','starhub.com','paypal.com',
+    'apple.com','google.com','microsoft.com',
+    'facebook.com','instagram.com','telegram.org',
+]
+
+CHAR_SUBS = str.maketrans({
+    '0':'o','1':'l','3':'e','4':'a',
+    '5':'s','6':'g','7':'t','8':'b',
+    '@':'a','$':'s',
+})
+
+def levenshtein(a, b):
+    if len(a) < len(b): a, b = b, a
+    if not b: return len(a)
+    prev = list(range(len(b)+1))
+    for ca in a:
+        curr = [prev[0]+1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j+1]+1, curr[j]+1, prev[j]+(0 if ca==cb else 1)))
+        prev = curr
+    return prev[-1]
+
+def check_typosquatting(domain):
+    domain = domain.lower().strip().lstrip('www.')
+    domain_norm = domain.translate(CHAR_SUBS)
+    best_match = None
+    best_dist  = 999
+    for trusted in TRUSTED_DOMAINS:
+        if domain == trusted or domain_norm == trusted:
+            return None
+        if trusted in domain:
+            return {'trusted':trusted,'distance':0,
+                    'note':f'Contains trusted name "{trusted}" — possible impersonation'}
+        t_label = trusted.split('.')[0]
+        d_label = domain_norm.split('.')[0]
+        if abs(len(t_label)-len(d_label)) <= 3 and len(t_label) >= 4:
+            dist = levenshtein(d_label, t_label)
+            threshold = 2 if len(t_label) <= 6 else 3
+            if dist <= threshold and dist < best_dist:
+                best_dist = dist; best_match = trusted
+    if best_match:
+        return {'trusted':best_match,'distance':best_dist,
+                'note':f'Looks similar to "{best_match}" — possible typosquat'}
+    return None
+
 def send_spike_alert(indicator, scam_type, count, minutes_span):
     """Store spike alert in memory — dashboard polls it, bot sends to Telegram."""
     import re as _r
@@ -469,7 +523,6 @@ def submit_report():
             _times = [t for t in _times if _now - t < _SPIKE_WINDOW]
             _times.append(_now)
             _spike_tracker[_ind] = _times
-            print(f'[spike:new] {_ind[:40]} → {len(_times)} report(s) in window')
         except Exception as _se:
             print(f'[spike:new] {_se}')
 
@@ -737,12 +790,28 @@ def check_indicator():
                                 'report_count': pending.get('report_count', 1),
                                 'message': 'This indicator is pending admin review.'}), 200
             # ── Redirect check ───────────────────────────────────────
-            # Follow redirects manually to capture final URL
-            # even if final destination is unreachable (e.g. real scam site)
+            # ── Typosquatting check ──────────────────────────────
+            try:
+                _domain = indicator.split('://')[-1].split('/')[0].split('?')[0]
+                _typo   = check_typosquatting(_domain)
+                if _typo:
+                    print(f'[typosquat] {indicator} → {_typo["note"]}')
+                    return jsonify({
+                        'status':      'typosquat',
+                        'indicator':   indicator,
+                        'trusted':     _typo['trusted'],
+                        'distance':    _typo['distance'],
+                        'note':        _typo['note'],
+                        'scam_type':   'Impersonation',
+                        'severity':    'high',
+                        'message':     _typo['note'],
+                    }), 200
+            except Exception as _te:
+                print(f'[typosquat] {_te}')
+
             if indicator.startswith('http'):
                 final_url = None
                 try:
-                    # Disable auto-redirect so we can capture each hop manually
                     sess = requests.Session()
                     sess.max_redirects = 10
                     current = indicator

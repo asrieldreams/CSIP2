@@ -457,7 +457,10 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       </div>
       <!-- Activity -->
       <div>
-        <div class="section-header"><div class="section-title">Recent Admin Activity</div></div>
+        <div class="section-header">
+          <div class="section-title">Recent Admin Activity</div>
+          <button class="btn btn-ghost btn-sm" onclick="showPage('auditlog',document.querySelector('[onclick*=auditlog]'))">View all →</button>
+        </div>
         <div class="table-wrap" style="padding:0.25rem 0">
           <div class="activity-list" id="activity-list"></div>
         </div>
@@ -685,17 +688,71 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <div class="section-header">
       <div class="section-title">Audit Log</div>
       <div class="section-actions">
-        <button class="btn btn-ghost btn-sm" onclick="showToast('Log exported as CSV','success')">
+        <button class="btn btn-ghost btn-sm" onclick="exportAuditCSV()">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export CSV
         </button>
       </div>
     </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 14px;align-items:center">
+      <input id="audit-search" type="text" placeholder="Search target or details…"
+        style="flex:1;min-width:160px;padding:7px 12px;border-radius:8px;
+               border:1px solid var(--border);background:var(--surface2);
+               color:var(--ink);font-size:0.82rem"
+        oninput="auditPage=1;loadAuditLog()">
+
+      <select id="audit-action-filter"
+        style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+               background:var(--surface2);color:var(--ink);font-size:0.82rem"
+        onchange="auditPage=1;loadAuditLog()">
+        <option value="">All Actions</option>
+        <option value="Confirmed">✅ → Confirmed</option>
+        <option value="Suspected">⚠️ → Suspected</option>
+        <option value="Removed">❌ → Removed</option>
+        <option value="Pending">⏳ → Pending</option>
+        <option value="Login">🔐 Admin Login</option>
+        <option value="Community">👥 Community</option>
+        <option value="Bulk">📦 Bulk Action</option>
+      </select>
+
+      <select id="audit-admin-filter"
+        style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+               background:var(--surface2);color:var(--ink);font-size:0.82rem"
+        onchange="auditPage=1;loadAuditLog()">
+        <option value="">All Admins</option>
+      </select>
+
+      <button class="btn btn-ghost btn-sm" onclick="auditPage=1;document.getElementById('audit-search').value='';document.getElementById('audit-action-filter').value='';document.getElementById('audit-admin-filter').value='';loadAuditLog()">
+        Reset
+      </button>
+
+      <span id="audit-count" style="font-size:0.78rem;color:var(--ink-muted);margin-left:4px"></span>
+    </div>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Timestamp</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
-        <tbody id="audit-table-body"></tbody>
+        <thead><tr>
+          <th>Time</th>
+          <th>Admin</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Details</th>
+        </tr></thead>
+        <tbody id="audit-table-body">
+          <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">Loading…</td></tr>
+        </tbody>
       </table>
+    </div>
+
+    <!-- Pagination -->
+    <div id="audit-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;font-size:0.82rem;color:var(--ink-muted)">
+      <span id="audit-page-info"></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" id="audit-prev" onclick="auditPage--;loadAuditLog()">← Prev</button>
+        <button class="btn btn-ghost btn-sm" id="audit-next" onclick="auditPage++;loadAuditLog()">Next →</button>
+      </div>
     </div>
   </div>
 
@@ -934,6 +991,7 @@ function showPage(name, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
+    if (name === 'auditlog') { auditPage = 1; loadAuditLog(); }
     if (btn) btn.classList.add('active');
     document.getElementById('topbar-title').textContent = pageTitles[name] || name;
 
@@ -999,15 +1057,39 @@ async function loadPendingQueue() {
 }
 
 async function loadActivityFeed() {
-    const res  = await apiFetch('/admin/audit-log?per_page=6');
-    const data = await res.json();
-    const actionColors = { Verified:'var(--green)', Removed:'var(--red)', Flagged:'var(--amber)', 'Added Indicator':'var(--accent)', 'Blocked IP':'var(--red)', 'Bulk Verified':'var(--green)', Login:'var(--ink-soft)' };
-    document.getElementById('activity-list').innerHTML = data.data.map(l => `
-        <div class="activity-item">
-            <div class="activity-dot" style="background:${actionColors[l.action]||'var(--ink-muted)'}"></div>
-            <div class="activity-text"><strong>${l.admin}</strong> ${l.action.toLowerCase()} <strong>${l.target}</strong></div>
-            <div class="activity-time">${(l.ts||'').split(' ')[1]||''}</div>
-        </div>`).join('');
+    try {
+        const res  = await apiFetch('/admin/audit-log?per_page=8');
+        if (!res.ok) return;
+        const data = await res.json();
+        const rows = data.data || [];
+        const list = document.getElementById('activity-list');
+        if (!list) return;
+
+        if (rows.length === 0) {
+            list.innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--ink-muted);font-size:0.82rem">No activity yet</div>';
+            return;
+        }
+
+        list.innerHTML = rows.map(l => {
+            const [bg, accent] = getAuditColour(l.action);
+            const dotColor = accent || 'var(--ink-muted)';
+            const actionText = l.action.toLowerCase().replace('admin ', '');
+            return `
+            <div class="activity-item" style="border-left:3px solid ${dotColor};padding-left:12px;margin-bottom:2px;background:${bg||'transparent'}">
+                <div class="activity-text">
+                    <strong>${escHtml(l.admin)}</strong>
+                    <span style="color:var(--ink-muted)"> ${escHtml(actionText)}</span>
+                    <strong> ${escHtml(l.target)}</strong>
+                    ${l.detail ? `<div style="font-size:0.74rem;color:var(--ink-muted);margin-top:2px">${escHtml(l.detail.slice(0,60))}</div>` : ''}
+                </div>
+                <div class="activity-time">${l.time_ago || ''}</div>
+            </div>`;
+        }).join('');
+
+    } catch(e) {
+        const list = document.getElementById('activity-list');
+        if (list) list.innerHTML = '<div style="padding:1rem;color:var(--ink-muted);font-size:0.82rem">Could not load activity</div>';
+    }
 }
 
 // ── SCAM REPORTS TABLE ────────────────────────────────────────────────────
@@ -1336,21 +1418,7 @@ async function removeFromBlocklist(id) {
 }
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────────────
-async function loadAuditLog() {
-    const res  = await apiFetch('/admin/audit-log?per_page=50');
-    const data = await res.json();
-    const actionColors = { Verified:'var(--green)', Removed:'var(--red)', Flagged:'var(--amber)', 'Added Indicator':'var(--accent)', 'Blocked IP':'var(--red)', Login:'var(--ink-soft)' };
-    document.getElementById('audit-table-body').innerHTML = (data.data || []).map(l => `
-        <tr>
-            <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-muted)">${l.ts}</span></td>
-            <td style="font-size:0.85rem;font-weight:600">${l.admin}</td>
-            <td><span style="font-size:0.82rem;font-weight:600;color:${actionColors[l.action]||'var(--ink-soft)'}">${l.action}</span></td>
-            <td><span class="td-mono">${l.target||'—'}</span></td>
-            <td style="font-size:0.82rem;color:var(--ink-soft)">${l.detail||'—'}</td>
-        </tr>`).join('');
-}
 
-// ── ANALYTICS ─────────────────────────────────────────────────────────────
 async function loadAnalytics() {
     const res  = await apiFetch('/admin/analytics');
     const data = await res.json();
@@ -1888,6 +1956,191 @@ async function pollNotifications() {
 // Poll every 30 seconds
 pollNotifications();
 setInterval(pollNotifications, 30000);
+
+
+// ── Audit Log ──────────────────────────────────────────────────
+let auditPage = 1;
+const AUDIT_PER_PAGE = 20;
+
+const ACTION_ICONS = {
+  'Verified':             '✅',
+  'Flagged':              '⚠️',
+  'Removed':              '❌',
+  'Reverted to Pending':  '⏳',
+  'Community Demoted':    '👥',
+  'Flagged for Review':   '🔍',
+  'Admin Login':          '🔐',
+  'Bulk Verified':        '✅',
+  'Bulk Flagged':         '⚠️',
+  'Bulk Removed':         '❌',
+  'Indicator Added':      '➕',
+  'Indicator Deleted':    '🗑️',
+};
+
+function getAuditIcon(action) {
+  if (ACTION_ICONS[action]) return ACTION_ICONS[action];
+  if (action.startsWith('Changed:')) {
+    if (action.includes('→ Confirmed'))  return '✅';
+    if (action.includes('→ Suspected'))  return '⚠️';
+    if (action.includes('→ Removed'))    return '❌';
+    if (action.includes('→ Pending'))    return '⏳';
+    return '🔄';
+  }
+  if (action.startsWith('Bulk'))  return '📦';
+  return '📋';
+}
+
+function getAuditBadge(action) {
+  if (action.includes('→ Confirmed') || action.includes('Bulk Verified'))
+    return 'status-approved';
+  if (action.includes('→ Suspected') || action.includes('Bulk Flagged'))
+    return 'status-pending';
+  if (action.includes('→ Removed')   || action.includes('Bulk Removed'))
+    return 'status-rejected';
+  if (action.includes('→ Pending'))   return 'status-pending';
+  if (action === 'Admin Login')        return 'status-approved';
+  return 'status-pending';
+}
+
+function getAuditColour(action) {
+  // Extract the DESTINATION (after →) to determine colour
+  const arrow = action.indexOf('→');
+  const dest  = arrow >= 0
+    ? action.slice(arrow + 1).trim().toLowerCase()
+    : action.toLowerCase();
+
+  if (dest.startsWith('confirmed') || action.toLowerCase().includes('bulk verified'))
+    return ['rgba(63,185,80,0.08)',  '#3fb950'];  // green
+  if (dest.startsWith('suspected')  || action.toLowerCase().includes('bulk flagged'))
+    return ['rgba(210,153,34,0.08)', '#d29922'];  // yellow/amber
+  if (dest.startsWith('removed')    || action.toLowerCase().includes('bulk removed'))
+    return ['rgba(248,81,73,0.08)',  '#f85149'];  // red
+  if (dest.startsWith('pending'))
+    return ['rgba(139,148,158,0.08)','#8b949e'];  // grey
+  if (action.toLowerCase().includes('login'))
+    return ['rgba(37,99,235,0.08)',  '#2563eb'];  // blue
+  return ['', ''];
+}
+
+async function loadAuditLog() {
+  const search  = document.getElementById('audit-search')?.value || '';
+  const action  = document.getElementById('audit-action-filter')?.value || '';
+  const admin   = document.getElementById('audit-admin-filter')?.value || '';
+  const tbody   = document.getElementById('audit-table-body');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">Loading…</td></tr>';
+
+  try {
+    // Ensure user is authenticated before calling
+    const token = localStorage.getItem('sw_token');
+    if (!token) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">Please log in to view audit logs</td></tr>';
+      return;
+    }
+    const params = new URLSearchParams({
+      page: auditPage, per_page: AUDIT_PER_PAGE,
+      ...(search && { search }),
+      ...(action && { action }),
+      ...(admin  && { admin  }),
+    });
+    const res  = await apiFetch(`/admin/audit-log?${params}`);
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">
+        ⚠️ Server returned ${res.status}. Check if backend is running.
+      </td></tr>`;
+      return;
+    }
+    const data = await res.json();
+    console.log('[audit] API response:', data.total, 'records, page', data.page);
+
+    // Populate admin filter dropdown dynamically
+    const adminSel = document.getElementById('audit-admin-filter');
+    if (adminSel && data.admins) {
+      const curVal = adminSel.value;
+      adminSel.innerHTML = '<option value="">All Admins</option>' +
+        data.admins.map(a => `<option value="${a}" ${a===curVal?'selected':''}>${a}</option>`).join('');
+    }
+
+    // Populate action filter from DB
+    const actionSel = document.getElementById('audit-action-filter');
+    if (actionSel && data.actions && data.actions.length > 0) {
+      const curAct = actionSel.value;
+      actionSel.innerHTML = '<option value="">All Actions</option>' +
+        data.actions.map(a => {
+          const icon = ACTION_ICONS[a] || '📋';
+          return `<option value="${a}" ${a===curAct?'selected':''}>${icon} ${a}</option>`;
+        }).join('');
+    }
+
+    const rows = data.data || [];
+    const total = data.total || 0;
+
+    // Update count
+    document.getElementById('audit-count').textContent =
+      total > 0 ? `${total} record${total !== 1 ? 's' : ''}` : 'No records';
+
+    // Pagination
+    const pages  = data.pages || 1;
+    document.getElementById('audit-page-info').textContent =
+      `Page ${auditPage} of ${pages}`;
+    document.getElementById('audit-prev').disabled = auditPage <= 1;
+    document.getElementById('audit-next').disabled = auditPage >= pages;
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">No audit records found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+      const icon  = getAuditIcon(r.action);
+      const badge = getAuditBadge(r.action);
+      const [rowBg, accent] = getAuditColour(r.action);
+      const firstTdBorder   = accent ? `border-left:4px solid ${accent};padding-left:12px` : 'padding-left:12px';
+      return `<tr style="background:${rowBg};transition:background 0.15s;">
+        <td style="white-space:nowrap;color:var(--ink-muted);font-size:0.78rem;${firstTdBorder}">
+          ${r.time_ago}<br>
+          <span style="font-size:0.7rem">${r.created_at.replace('T',' ').slice(0,16)}</span>
+        </td>
+        <td style="font-size:0.82rem">${escHtml(r.admin)}</td>
+        <td><span class="badge ${badge}" style="font-size:0.72rem">${icon} ${escHtml(r.action)}</span></td>
+        <td style="font-weight:600;font-size:0.82rem">${escHtml(r.target)}</td>
+        <td style="color:var(--ink-soft);font-size:0.78rem;max-width:220px;
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${escHtml(r.detail)}">${escHtml(r.detail)}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) {
+    console.error('[audit] Error:', e);
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">
+      ⚠️ Failed to load: ${e.message}.<br><small>Make sure the backend is running.</small>
+    </td></tr>`;
+  }
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function exportAuditCSV() {
+  const rows = [...document.querySelectorAll('#audit-table-body tr')];
+  if (!rows.length) { showToast('No data to export','warning'); return; }
+  const headers = ['Time','Admin','Action','Target','Details'];
+  const lines   = [headers.join(',')];
+  rows.forEach(row => {
+    const cells = [...row.querySelectorAll('td')].map(td =>
+      `"${td.innerText.replace(/"/g,'""').replace(/\n/g,' ')}"`);
+    if (cells.length === 5) lines.push(cells.join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type: 'text/csv'});
+  const a    = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `csip2-audit-${new Date().toISOString().slice(0,10)}.csv`
+  });
+  a.click();
+  showToast('Audit log exported as CSV','success');
+}
 
 </script>
 </body>
