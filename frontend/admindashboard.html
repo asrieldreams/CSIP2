@@ -547,11 +547,21 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <span id="reports-count-label">Showing 1–12 of 12</span>
         <div class="tbl-page-btns">
           <span id="reports-pagination" style="display:inline-flex;gap:4px"></span>
-        <button class="btn btn-primary btn-sm" onclick="openBlocklistAddModal()">
-          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Indicator
-        </button>
+        </div>
       </div>
+    </div>
+  </div><!-- /page-reports -->
+
+  <!-- ══════════════════════════════════ -->
+  <!-- PAGE: SCANNER INDICATORS           -->
+  <!-- ══════════════════════════════════ -->
+  <div class="page" id="page-blocklist">
+    <div class="section-header">
+      <div class="section-title">Scanner Indicators</div>
+      <button class="btn btn-primary btn-sm" onclick="openBlocklistAddModal()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Indicator
+      </button>
     </div>
 
     <div class="table-wrap">
@@ -595,7 +605,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         </div>
       </div>
     </div>
-  </div>
+  </div><!-- /page-blocklist -->
 
   <!-- ══════════════════════════════════ -->
   <!-- PAGE: ANALYTICS                    -->
@@ -698,63 +708,76 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       </div>
     </div>
 
-    <!-- Filter bar -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 14px;align-items:center">
-      <input id="audit-search" type="text" placeholder="Search target or details…"
-        style="flex:1;min-width:160px;padding:7px 12px;border-radius:8px;
-               border:1px solid var(--border);background:var(--surface2);
-               color:var(--ink);font-size:0.82rem"
-        oninput="auditPage=1;loadAuditLog()">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start">
+      <!-- Left: filters + table + pagination -->
+      <div>
+        <!-- Filter bar -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 14px;align-items:center">
+          <input id="audit-search" type="text" placeholder="Search target or details…"
+            style="flex:1;min-width:160px;padding:7px 12px;border-radius:8px;
+                   border:1px solid var(--border);background:var(--surface2);
+                   color:var(--ink);font-size:0.82rem"
+            oninput="auditPage=1;loadAuditLog()">
 
-      <select id="audit-action-filter"
-        style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
-               background:var(--surface2);color:var(--ink);font-size:0.82rem"
-        onchange="auditPage=1;loadAuditLog()">
-        <option value="">All Actions</option>
-        <option value="Confirmed">✅ → Confirmed</option>
-        <option value="Suspected">⚠️ → Suspected</option>
-        <option value="Removed">❌ → Removed</option>
-        <option value="Pending">⏳ → Pending</option>
-        <option value="Login">🔐 Admin Login</option>
-        <option value="Community">👥 Community</option>
-        <option value="Bulk">📦 Bulk Action</option>
-      </select>
+          <select id="audit-action-filter"
+            style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+                   background:var(--surface2);color:var(--ink);font-size:0.82rem"
+            onchange="auditPage=1;loadAuditLog()">
+            <option value="">All Actions</option>
+            <option value="Confirmed">✅ → Confirmed</option>
+            <option value="Suspected">⚠️ → Suspected</option>
+            <option value="Removed">❌ → Removed</option>
+            <option value="Pending">⏳ → Pending</option>
+            <option value="Login">🔐 Admin Login</option>
+            <option value="Community">👥 Community</option>
+            <option value="Bulk">📦 Bulk Action</option>
+          </select>
 
-      <select id="audit-admin-filter"
-        style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
-               background:var(--surface2);color:var(--ink);font-size:0.82rem"
-        onchange="auditPage=1;loadAuditLog()">
-        <option value="">All Admins</option>
-      </select>
+          <select id="audit-admin-filter"
+            style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+                   background:var(--surface2);color:var(--ink);font-size:0.82rem"
+            onchange="auditPage=1;loadAuditLog()">
+            <option value="">All Admins</option>
+          </select>
 
-      <button class="btn btn-ghost btn-sm" onclick="auditPage=1;document.getElementById('audit-search').value='';document.getElementById('audit-action-filter').value='';document.getElementById('audit-admin-filter').value='';loadAuditLog()">
-        Reset
-      </button>
+          <button class="btn btn-ghost btn-sm" onclick="auditPage=1;document.getElementById('audit-search').value='';document.getElementById('audit-action-filter').value='';document.getElementById('audit-admin-filter').value='';loadAuditLog()">
+            Reset
+          </button>
 
-      <span id="audit-count" style="font-size:0.78rem;color:var(--ink-muted);margin-left:4px"></span>
-    </div>
+          <span id="audit-count" style="font-size:0.78rem;color:var(--ink-muted);margin-left:4px"></span>
+        </div>
 
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th>Time</th>
-          <th>Admin</th>
-          <th>Action</th>
-          <th>Target</th>
-          <th>Details</th>
-        </tr></thead>
-        <tbody id="audit-table-body">
-          <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">⏳ Click the Audit Log button to load…</td></tr>
-        </tbody>
-      </table>
-    </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Time</th>
+              <th>Admin</th>
+              <th>Action</th>
+              <th>Target</th>
+              <th>Details</th>
+            </tr></thead>
+            <tbody id="audit-table-body">
+              <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">⏳ Click the Audit Log button to load…</td></tr>
+            </tbody>
+          </table>
+        </div>
 
-    <!-- Pagination -->
-    <div id="audit-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;font-size:0.82rem;color:var(--ink-muted)">
-      <span id="audit-page-info"></span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-ghost btn-sm" id="audit-prev" onclick="auditPage--;loadAuditLog()">← Prev</button>
-        <button class="btn btn-ghost btn-sm" id="audit-next" onclick="auditPage++;loadAuditLog()">Next →</button>
+        <!-- Pagination -->
+        <div id="audit-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;font-size:0.82rem;color:var(--ink-muted)">
+          <span id="audit-page-info"></span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" id="audit-prev" onclick="auditPage--;loadAuditLog()">← Prev</button>
+            <button class="btn btn-ghost btn-sm" id="audit-next" onclick="auditPage++;loadAuditLog()">Next →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Recent Activity feed (same style as Dashboard) -->
+      <div>
+        <div class="section-title" style="margin-bottom:0.75rem">Recent Activity</div>
+        <div class="table-wrap" style="padding:0.25rem 0">
+          <div class="activity-list" id="audit-activity-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -882,14 +905,12 @@ async function apiFetch(endpoint, options = {}) {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API}${endpoint}`, { ...options, headers });
     if (res.status === 401) {
-        // Token expired — send back to login
         localStorage.removeItem('sw_token');
         window.location.href = 'introduction.html';
     }
     return res;
 }
 
-// Verify token on page load — redirect to login if missing or expired
 async function checkAuth() {
     const token = localStorage.getItem('sw_token');
     if (!token) { window.location.href = 'introduction.html'; return; }
@@ -897,29 +918,9 @@ async function checkAuth() {
     if (!res.ok) { window.location.href = 'introduction.html'; }
 }
 
-
-
 // ─────────────────────────────────────────
-// API BASE — update to your Flask backend
-// ─────────────────────────────────────────
-/*
-  Backend endpoints expected:
-  GET    /api/admin/stats
-  GET    /api/admin/reports?status=&type=&severity=&search=&page=
-  PATCH  /api/admin/reports/:id  { status: 'verified'|'flagged'|'removed' }
-  DELETE /api/admin/reports/:id
-  GET    /api/admin/reports/flagged
-  GET    /api/admin/users
-  PATCH  /api/admin/users/:id   { status: 'suspended'|'banned'|'active', role: '...' }
-  GET    /api/admin/blocklist
-  POST   /api/admin/blocklist   { type, value, reason }
-  DELETE /api/admin/blocklist/:id
-  GET    /api/admin/audit-log
-  GET    /api/admin/analytics
-*/
-
-// ─────────────────────────────────────────
-// MOCK DATA
+// MOCK DATA (left in file — no longer used by any active renderer,
+// kept only in case you want to reference old shapes)
 // ─────────────────────────────────────────
 const MOCK_REPORTS = [
   {id:1,report_id:'SS-2025-47201',title:'Fake OCBC Bank Login Page',type:'phishing',severity:'high',status:'verified',url:'ocbc-verify-login.xyz',created_at:'2025-05-30T14:22:00',report_count:142},
@@ -989,7 +990,7 @@ let reportsData = [];
 // NAVIGATION
 // ─────────────────────────────────────────
 const pageTitles = {dashboard:'Dashboard',reports:'Scam Reports',flagged:'Flagged Content',users:'Spam & Abuse Control',blocklist:'Scanner Indicators',analytics:'Analytics',settings:'Settings',auditlog:'Audit Log'};
-// ── REPLACE showPage() to load real data ──────────────────────────────────
+
 function showPage(name, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1062,13 +1063,15 @@ async function loadPendingQueue() {
         </tr>`).join('');
 }
 
-async function loadActivityFeed() {
+// ── ACTIVITY FEED — now takes a target element id so both the
+//    Dashboard panel and the Audit Log panel can reuse it ──────────────────
+async function loadActivityFeed(targetId = 'activity-list') {
     try {
         const res  = await apiFetch('/admin/audit-log?per_page=8');
         if (!res.ok) return;
         const data = await res.json();
         const rows = data.data || [];
-        const list = document.getElementById('activity-list');
+        const list = document.getElementById(targetId);
         if (!list) return;
 
         if (rows.length === 0) {
@@ -1093,7 +1096,7 @@ async function loadActivityFeed() {
         }).join('');
 
     } catch(e) {
-        const list = document.getElementById('activity-list');
+        const list = document.getElementById(targetId);
         if (list) list.innerHTML = '<div style="padding:1rem;color:var(--ink-muted);font-size:0.82rem">Could not load activity</div>';
     }
 }
@@ -1114,7 +1117,6 @@ async function loadReports(page) {
             const to   = Math.min(_rPage*10, data.total||0);
             lbl.textContent = `Showing ${from}–${to} of ${data.total||0}`;
         }
-        // Build pagination
         const pgn = document.getElementById('reports-pagination');
         if (pgn && data.pages > 1) {
             let h = '';
@@ -1130,7 +1132,6 @@ async function loadReports(page) {
 async function quickAction(id, action) {
     const statusMap = { verify: 'verified', remove: 'removed', flag: 'flagged' };
 
-    // ── Optimistic update — remove row immediately ────────
     const row = document.getElementById('row-' + id);
     if (row) {
         row.style.transition = 'opacity 0.2s, transform 0.2s';
@@ -1139,7 +1140,6 @@ async function quickAction(id, action) {
         setTimeout(() => row.remove(), 200);
     }
 
-    // Update badge counts immediately
     const pendingBadge = document.getElementById('pending-badge');
     if (pendingBadge && action !== 'flag') {
         const cur = parseInt(pendingBadge.textContent) || 0;
@@ -1152,7 +1152,6 @@ async function quickAction(id, action) {
     const toastType = action === 'verify' ? 'success' : action === 'flag' ? 'info' : 'error';
     showToast(toastMsg, toastType);
 
-    // ── Fire API in background ────────────────────────────
     try {
         const res = await apiFetch(`/admin/reports/${id}`, {
             method: 'PATCH',
@@ -1165,17 +1164,14 @@ async function quickAction(id, action) {
         showToast('Server error — please refresh', 'error');
     }
 
-    // Reload data quietly in background
     setTimeout(() => { loadReports(); loadDashboard(); }, 500);
 }
 
 async function actionReport(action) {
     if (!currentReportId) return;
-    // Use the dropdown values directly
     const status   = document.getElementById('review-status').value;
     const severity = document.getElementById('review-severity').value;
 
-    // 'save' uses whatever status/severity admin selected in dropdowns
     const finalStatus = action === 'save' ? status : action;
 
     const res = await apiFetch(`/admin/reports/${currentReportId}`, {
@@ -1191,14 +1187,12 @@ async function actionReport(action) {
         };
         showToast(statusLabels[finalStatus] || 'Updated', 'success');
         closeModal('modal-review');
-        // Remove row immediately for instant feedback
         const row = document.getElementById('row-' + currentReportId);
         if (row) {
             row.style.transition = 'opacity 0.2s';
             row.style.opacity    = '0';
             setTimeout(() => row.remove(), 200);
         }
-        // Reload in background
         setTimeout(() => { loadReports(); loadDashboard(); }, 500);
     } else {
         showToast('Update failed — try again', 'error');
@@ -1423,14 +1417,11 @@ async function removeFromBlocklist(id) {
     if (res.ok) { showToast('Indicator removed', 'success'); loadIndicators(); }
 }
 
-// ── AUDIT LOG ─────────────────────────────────────────────────────────────
-
+// ── ANALYTICS ──────────────────────────────────────────────────────────────
 async function loadAnalytics() {
     const res  = await apiFetch('/admin/analytics');
     const data = await res.json();
 
-    document.querySelector('#page-analytics .stat-num:nth-child(1)') // skip — use IDs instead
-    // Just use the bar render for type and platform breakdowns:
     const total = data.type_breakdown?.reduce((s, t) => s + t.count, 0) || 1;
     document.getElementById('type-bars').innerHTML = (data.type_breakdown || []).map(t => {
         const pct = Math.round(t.count / total * 100);
@@ -1491,9 +1482,9 @@ async function proceedConfirm() {
     }
 }
 
-// ── INIT — run on page load ───────────────────────────────────────────────
-checkAuth();          // redirect to login if no valid token
-loadDashboard();      // load dashboard data on first open
+// ── INIT ────────────────────────────────────────────────────────────────
+checkAuth();
+loadDashboard();
 
 function switchTab(el,tabId){
   el.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -1563,147 +1554,6 @@ function renderReportsTable(data) {
   document.getElementById('reports-count-label').textContent=`Showing 1–${rows.length} of ${rows.length}`;
 }
 
-function renderFlaggedTable(){
-  const tbody=document.getElementById('flagged-table-body');
-  tbody.innerHTML=MOCK_FLAGGED.map(r=>`
-    <tr>
-      <td><input type="checkbox"></td>
-      <td><span class="td-mono">${r.report_id}</span></td>
-      <td><span class="td-main">${r.title}</span></td>
-      <td style="color:var(--amber);font-size:0.82rem">${r.reason}</td>
-      <td><span class="badge badge-flagged">${r.reports_against} complaints</span></td>
-      <td>${fmtDate(r.created_at)}</td>
-      <td>
-        <div class="row-actions">
-          <button class="btn btn-success btn-sm" onclick="restoreReport(${r.id})">Restore</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteReport(${r.id})">Remove</button>
-        </div>
-      </td>
-    </tr>`).join('');
-}
-
-function renderSpamTable(){
-  const tbody=document.getElementById('spam-table-body');
-  if(!tbody) return;
-  if(!MOCK_SPAM.length){tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">No spam sessions</div><p>All clear — no abuse detected.</p></div></td></tr>`;return;}
-  tbody.innerHTML=MOCK_SPAM.map((s,i)=>`
-    <tr>
-      <td><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--ink-muted)">${s.token}</span></td>
-      <td style="font-size:0.8rem;color:var(--amber);max-width:220px">${s.reason}</td>
-      <td><span class="badge badge-flagged">${s.count}×</span></td>
-      <td style="font-size:0.78rem;color:var(--ink-muted)">${s.time}</td>
-      <td>
-        <div class="row-actions">
-          <button class="btn btn-danger btn-sm" onclick="dismissSpam(${i})">Dismiss</button>
-          <button class="btn btn-amber btn-sm" onclick="blockSpamIP(${i})">Block IP</button>
-        </div>
-      </td>
-    </tr>`).join('');
-}
-
-function renderAdminsTable(){
-  const tbody=document.getElementById('admins-table-body');
-  if(!tbody) return;
-  tbody.innerHTML=MOCK_ADMINS.map((a,i)=>`
-    <tr>
-      <td>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">${a.initials}</div>
-          <div><div style="font-size:0.85rem;font-weight:600;color:var(--ink)">${a.name}</div><div style="font-size:0.72rem;color:var(--ink-muted)">${a.email}</div></div>
-        </div>
-      </td>
-      <td><span class="badge ${a.role==='Super Admin'?'badge-verified':a.role==='Moderator'?'badge-active':'badge-pending'}">${a.role}</span></td>
-      <td style="font-size:0.82rem;color:var(--ink-muted)">${a.last_login}</td>
-      <td>
-        <div class="row-actions">
-          ${i>0?`<button class="btn btn-ghost btn-sm" onclick="showToast('Edit role — connect to backend','info')">Edit Role</button><button class="btn btn-danger btn-sm" onclick="removeAdmin(${i})">Remove</button>`:'<span style="font-size:0.75rem;color:var(--ink-muted)">Owner</span>'}
-        </div>
-      </td>
-    </tr>`).join('');
-}
-
-let indFilterSearch='', indFilterType='', indFilterSource='';
-function getFilteredIndicators(){
-  let d=[...MOCK_BLOCKLIST];
-  if(indFilterSearch){const q=indFilterSearch.toLowerCase();d=d.filter(b=>b.value.toLowerCase().includes(q)||(b.report_id&&b.report_id.toLowerCase().includes(q)));}
-  if(indFilterType) d=d.filter(b=>b.type===indFilterType);
-  if(indFilterSource) d=d.filter(b=>b.source===indFilterSource);
-  return d;
-}
-function filterIndicators(v){indFilterSearch=v;renderBlocklistTable();}
-function filterIndicatorType(v){indFilterType=v;renderBlocklistTable();}
-function filterIndicatorSource(v){indFilterSource=v;renderBlocklistTable();}
-
-
-function renderAuditLog(){
-  const tbody=document.getElementById('audit-table-body');
-  const actionColors={Verified:'var(--green)',Removed:'var(--red)',Flagged:'var(--amber)','Blocked URL':'var(--red)','Suspended User':'var(--amber)','Bulk Verified':'var(--green)'};
-  tbody.innerHTML=MOCK_AUDIT.map(a=>`
-    <tr>
-      <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-muted)">${a.ts}</span></td>
-      <td style="font-size:0.85rem;font-weight:600">${a.admin}</td>
-      <td><span style="font-size:0.82rem;font-weight:600;color:${actionColors[a.action]||'var(--ink-soft)'}">${a.action}</span></td>
-      <td><span class="td-mono">${a.target}</span></td>
-      <td style="font-size:0.82rem;color:var(--ink-soft)">${a.detail}</td>
-    </tr>`).join('');
-}
-
-function renderAnalytics(){
-  const types=[{l:'Phishing',v:38},{l:'SMS/Call',v:24},{l:'Investment',v:18},{l:'Job Scam',v:12},{l:'Impersonation',v:8}];
-  const platforms=[{l:'WhatsApp',v:45},{l:'SMS',v:28},{l:'Telegram',v:14},{l:'Email',v:9},{l:'Carousell',v:4}];
-  const renderBars=(el,items,color)=>{
-    document.getElementById(el).innerHTML=items.map(i=>`
-      <div style="margin-bottom:0.85rem">
-        <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px">
-          <span style="color:var(--ink-soft)">${i.l}</span>
-          <span style="font-weight:600;color:var(--ink)">${i.v}%</span>
-        </div>
-        <div style="height:8px;background:var(--surface3);border-radius:999px;overflow:hidden">
-          <div style="height:100%;width:${i.v}%;background:${color};border-radius:999px;transition:width 0.6s ease"></div>
-        </div>
-      </div>`).join('');
-  };
-  renderBars('type-bars',types,'var(--accent)');
-  renderBars('platform-bars',platforms,'var(--green)');
-}
-
-function renderDashboardQueue(){
-  const pending=reportsData.filter(r=>r.status==='pending').slice(0,5);
-  const tbody=document.getElementById('dash-queue-body');
-  tbody.innerHTML=pending.map(r=>`
-    <tr>
-      <td><span class="td-main" style="font-size:0.83rem">${r.title}</span></td>
-      <td><span class="type-pill" style="font-size:0.75rem">${TYPE_ICONS[r.type]||'❓'} ${r.type}</span></td>
-      <td><span class="badge badge-${r.severity}">${r.severity}</span></td>
-      <td style="font-size:0.78rem;color:var(--ink-muted)">${timeAgo(r.created_at)}</td>
-      <td>
-        <div style="display:flex;gap:5px">
-          <button class="btn btn-success btn-sm" onclick="quickAction(${r.id},'verify')">✓</button>
-          <button class="btn btn-danger btn-sm" onclick="quickAction(${r.id},'remove')">✕</button>
-          <button class="btn btn-ghost btn-sm" onclick="openReviewModal(${r.id})">Review</button>
-        </div>
-      </td>
-    </tr>`).join('');
-  if(!pending.length) tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state" style="padding:2rem"><div class="empty-state-icon">🎉</div><div class="empty-state-title">Queue is clear!</div></div></td></tr>`;
-}
-
-function renderActivityFeed(){
-  const feed=[
-    {color:'var(--green)',text:'<strong>Admin</strong> verified <strong>SS-2025-47201</strong>',time:'2m ago'},
-    {color:'var(--amber)',text:'<strong>Sarah Tan</strong> flagged <strong>SS-2025-47129</strong> as false report',time:'28m ago'},
-    {color:'var(--red)',text:'<strong>Admin</strong> blocked URL <strong>ocbc-verify-login.xyz</strong>',time:'1h ago'},
-    {color:'var(--accent)',text:'<strong>12 new reports</strong> submitted by community',time:'2h ago'},
-    {color:'var(--amber)',text:'<strong>Marcus Lim</strong> suspended user <strong>abuse123</strong>',time:'3h ago'},
-    {color:'var(--green)',text:'<strong>Sarah Tan</strong> verified <strong>SS-2025-47186</strong>',time:'5h ago'},
-  ];
-  document.getElementById('activity-list').innerHTML=feed.map(f=>`
-    <div class="activity-item">
-      <div class="activity-dot" style="background:${f.color}"></div>
-      <div class="activity-text">${f.text}</div>
-      <div class="activity-time">${f.time}</div>
-    </div>`).join('');
-}
-
 // ─────────────────────────────────────────
 // SELECTION
 // ─────────────────────────────────────────
@@ -1736,12 +1586,6 @@ function clearSelection(){
 // ─────────────────────────────────────────
 // ACTIONS
 // ─────────────────────────────────────────
-/*
- * Real backend call pattern:
- * fetch(`${API}/admin/reports/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'verified'}) })
- */
-
-
 function openReviewModal(id){
   const r=reportsData.find(x=>x.id===id);
   if(!r) return;
@@ -1771,24 +1615,9 @@ function openReviewModal(id){
   openModal('modal-review');
 }
 
-
-
 function restoreReport(id){
   const r = reportsData.find(x=>x.id===id);
-  if(r){ r.status='pending'; showToast('Report restored to pending queue','success'); renderFlaggedTable(); renderDashboardQueue(); updateBadges(); }
-}
-
-
-
-function addToBlocklist(){
-  const val=document.getElementById('block-value').value.trim();
-  const type=document.getElementById('block-type').value;
-  const reportId=document.getElementById('block-reason').value.trim();
-  if(!val){showToast('Please enter a value','error');return;}
-  MOCK_BLOCKLIST.unshift({id:Date.now(),value:val,type,report_id:reportId||null,source:'manual',hits:0,date:new Date().toISOString().split('T')[0]});
-  showToast('Indicator added to scanner','success');
-  closeModal('modal-blocklist');
-  renderBlocklistTable();
+  if(r){ r.status='pending'; showToast('Report restored to pending queue','success'); loadDashboard(); }
 }
 
 function openBlocklistAddModal(){document.getElementById('block-value').value='';document.getElementById('block-reason').value='';openModal('modal-blocklist');}
@@ -1804,6 +1633,11 @@ function filterReports(v){filterSearch=v;applyFilters();}
 function filterByStatus(v){filterStatus=v;applyFilters();}
 function filterByType(v){filterType=v;applyFilters();}
 function filterBySeverity(v){filterSeverity=v;applyFilters();}
+
+let indFilterSearch='', indFilterType='', indFilterSource='';
+function filterIndicators(v){indFilterSearch=v;loadIndicators();}
+function filterIndicatorType(v){indFilterType=v;loadIndicators();}
+function filterIndicatorSource(v){indFilterSource=v;loadIndicators();}
 
 // ─────────────────────────────────────────
 // CONFIRM DANGER MODAL
@@ -1841,15 +1675,6 @@ function showToast(msg,type='success'){
 }
 
 // ─────────────────────────────────────────
-// AUDIT LOG
-// ─────────────────────────────────────────
-function logAudit(admin,action,target,detail){
-  const now=new Date();
-  const ts=now.toISOString().replace('T',' ').substring(0,16);
-  MOCK_AUDIT.unshift({ts,admin,action,target,detail});
-}
-
-// ─────────────────────────────────────────
 // UPDATE BADGES
 // ─────────────────────────────────────────
 function updateBadges(){
@@ -1860,12 +1685,6 @@ function updateBadges(){
   document.getElementById('dash-pending').textContent=pending;
 }
 
-// ─────────────────────────────────────────
-// INIT
-// ─────────────────────────────────────────
-checkAuth();
-loadDashboard();
-
 // ── Notification System ───────────────────────────────────────
 let _notifSeen = new Set();
 
@@ -1873,12 +1692,10 @@ function toggleNotifPanel() {
     const panel = document.getElementById('notif-panel');
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     if (panel.style.display === 'block') {
-        // Mark all as seen
         document.getElementById('notif-badge').style.display = 'none';
     }
 }
 
-// Close panel when clicking outside
 document.addEventListener('click', e => {
     const wrapper = document.getElementById('notif-wrapper');
     if (wrapper && !wrapper.contains(e.target)) {
@@ -1896,7 +1713,6 @@ function clearNotifications() {
 
 async function pollNotifications() {
     try {
-        // Direct fetch — no auth needed for notification endpoint
         const res  = await fetch('http://localhost:5000/api/admin/notifications');
         if (!res.ok) return;
         const data = await res.json();
@@ -1907,7 +1723,6 @@ async function pollNotifications() {
         const badge = document.getElementById('notif-badge');
         let newCount = 0;
 
-        // Add new notifications to top
         for (const n of notifs.reverse()) {
             const key = `${n.indicator}:${n.timestamp}`;
             if (_notifSeen.has(key)) continue;
@@ -1937,7 +1752,6 @@ async function pollNotifications() {
                 </div>
             `;
 
-            // Clear empty state
             const empty = list.querySelector('div[style*="text-align:center"]');
             if (empty) empty.remove();
             list.insertBefore(el, list.firstChild);
@@ -1948,7 +1762,6 @@ async function pollNotifications() {
             if (panel && panel.style.display === 'none') {
                 badge.style.display = 'block';
                 badge.textContent   = Math.min(newCount, 9) + (newCount > 9 ? '+' : '');
-                // Pulse animation
                 badge.style.animation = 'none';
                 badge.offsetHeight;
                 badge.style.animation = 'pulse 0.5s ease 3';
@@ -1959,10 +1772,8 @@ async function pollNotifications() {
     }
 }
 
-// Poll every 30 seconds
 pollNotifications();
 setInterval(pollNotifications, 30000);
-
 
 // ── Audit Log ──────────────────────────────────────────────────
 let auditPage = 1;
@@ -2001,6 +1812,9 @@ async function loadAuditLog() {
     const tbody = document.getElementById('audit-table-body');
     if (!tbody) return;
 
+    // Keep the Recent Activity side panel in sync every time the log loads
+    loadActivityFeed('audit-activity-list');
+
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-muted)">⏳ Loading…</td></tr>';
 
     try {
@@ -2022,11 +1836,9 @@ async function loadAuditLog() {
         const rows = data.data || [];
         const total = data.total || 0;
 
-        // Update count
         const countEl = document.getElementById('audit-count');
         if (countEl) countEl.textContent = total ? total + ' records' : 'No records';
 
-        // Pagination
         const pages = data.pages || 1;
         const pi = document.getElementById('audit-page-info');
         if (pi) pi.textContent = 'Page ' + auditPage + ' of ' + pages;
@@ -2035,7 +1847,6 @@ async function loadAuditLog() {
         if (pp) pp.disabled = auditPage <= 1;
         if (pn) pn.disabled = auditPage >= pages;
 
-        // Populate admin dropdown
         const adminSel = document.getElementById('audit-admin-filter');
         if (adminSel && data.admins && data.admins.length) {
             const cur = adminSel.value;
@@ -2051,7 +1862,6 @@ async function loadAuditLog() {
         }
 
         tbody.innerHTML = rows.map(function(r) {
-            // Determine colour from destination (after →)
             var action_str = r.action || '';
             var arrow = action_str.indexOf('\u2192'); // →
             if (arrow < 0) arrow = action_str.indexOf('->');
@@ -2086,7 +1896,6 @@ async function loadAuditLog() {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:#f85149">⚠️ ' + err.message + '</td></tr>';
     }
 }
-
 
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -2123,7 +1932,6 @@ function exportAuditCSV() {
   a.click();
   showToast('Audit log exported as CSV','success');
 }
-
 </script>
 </body>
 </html>
