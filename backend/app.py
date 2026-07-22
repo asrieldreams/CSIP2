@@ -6,6 +6,7 @@
 
 import re
 import os
+import requests
 from dotenv import load_dotenv
 load_dotenv()
 from flask_cors import CORS
@@ -105,27 +106,63 @@ def check_typosquatting(domain):
                 'note':f'Looks similar to "{best_match}" — possible typosquat'}
     return None
 
-def send_spike_alert(indicator, scam_type, count, minutes_span):
-    """Store spike alert in memory — dashboard polls it, bot sends to Telegram."""
-    import re as _r
-    c    = _r.sub(r'[\s\-\+\(\)]', '', indicator)
-    icon = '📞' if (c.isdigit() and 8<=len(c)<=15) else '📧' if '@' in indicator else '🔗'
-
+def send_spike_alert(indicator, scam_type, count, window_minutes):
+    """Store spike alert in memory AND send Telegram DM to admin."""
+    import time as _t
     alert = {
+        'id':           int(_t.time() * 1000),
         'type':         'spike',
+        'title':        f'🚨 Spike: {indicator}',
+        'message':      f'{count} reports in {window_minutes}min',
         'indicator':    indicator,
-        'icon':         icon,
         'scam_type':    scam_type,
         'count':        count,
-        'minutes_span': minutes_span,
-        'timestamp':    _time.time(),
-        'sent_to_bot':  False,
+        'window_min':   window_minutes,
+        'timestamp':    datetime.utcnow().isoformat(),
+        'read':         False,
     }
     _pending_notifications.append(alert)
     if len(_pending_notifications) > 50:
         _pending_notifications.pop(0)
 
-    print(f'[spike] Alert queued: {indicator} — {count} reports in {minutes_span}min')
+    print(f'[spike] Alert queued: {indicator} — {count} reports in {window_minutes}min')
+
+    # ── Send Telegram DM to admin ──────────────────────────
+    try:
+        bot_token       = os.environ.get('BOT_TOKEN', '').strip()
+        admin_tg_id     = os.environ.get('ADMIN_TELEGRAM_ID', '').strip()
+
+        if not bot_token or not admin_tg_id:
+            print(f'[spike] Telegram not configured — BOT_TOKEN or ADMIN_TELEGRAM_ID missing')
+            return
+
+        msg = (
+            f"🚨 *Scam Spike Detected*\n\n"
+            f"*Indicator:* `{indicator}`\n"
+            f"*Type:* {scam_type or 'Unknown'}\n"
+            f"*Reports:* {count} in {window_minutes} min\n"
+            f"*Time:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            f"Check the admin dashboard for details."
+        )
+
+        resp = requests.post(
+            f'https://api.telegram.org/bot{bot_token}/sendMessage',
+            json={
+                'chat_id':    admin_tg_id,
+                'text':       msg,
+                'parse_mode': 'Markdown',
+            },
+            timeout=10,
+        )
+
+        if resp.status_code == 200:
+            print(f'[spike] Telegram alert sent to admin {admin_tg_id} ✅')
+        else:
+            print(f'[spike] Telegram send failed: {resp.status_code} {resp.text}')
+
+    except Exception as e:
+        print(f'[spike] Telegram send error: {e}')
+
 
 
 
@@ -990,36 +1027,45 @@ def my_reports():
 @app.route('/api/admin/notifications', methods=['GET'])
 @require_token
 def get_notifications():
-    """Return spike alerts from in-memory store — no DB needed."""
-    mark_sent = request.args.get('mark_sent') == '1'
+    """Return spike alerts from in-memory store to admin dashboard."""
+    mark_sent = request.args.get('mark_sent', 'false').lower() == 'true'
     now       = _time.time()
 
-    # Filter to last 24 hours
+    # Keep only last 24 hours
     recent = [
         n for n in _pending_notifications
-        if now - n['timestamp'] < 86400
-    ][-20:]
+        if now - datetime.fromisoformat(n['timestamp']).timestamp() < 86400
+    ]
+
     print(f'[notif] pending={len(_pending_notifications)} recent={len(recent)} mark_sent={mark_sent}')
 
     if mark_sent:
         for n in _pending_notifications:
-            n['sent_to_bot'] = True
+            n['read'] = True
+
+    import re as _r
+    def _icon(ind):
+        c = _r.sub(r'[\s\-\+\(\)]', '', ind or '')
+        if c.isdigit() and 8 <= len(c) <= 15: return '📞'
+        if '@' in (ind or ''): return '📧'
+        return '🔗'
 
     notifs = [
         {
-            'type':         n['type'],
-            'indicator':    n['indicator'],
-            'icon':         n.get('icon', '🔗'),
-            'scam_type':    n['scam_type'],
-            'count':        n['count'],
-            'minutes_span': n['minutes_span'],
-            'timestamp':    n['timestamp'],
-            'age_minutes':  int((now - n['timestamp']) / 60),
+            'type':         n.get('type', 'spike'),
+            'indicator':    n.get('indicator', ''),
+            'icon':         n.get('icon') or _icon(n.get('indicator', '')),
+            'scam_type':    n.get('scam_type', ''),
+            'count':        n.get('count', 0),
+            'minutes_span': n.get('minutes_span') or n.get('window_min', 0),
+            'timestamp':    datetime.fromisoformat(n['timestamp']).timestamp(),
+            'age_minutes':  int((now - datetime.fromisoformat(n['timestamp']).timestamp()) / 60),
+            'read':         n.get('read', False),
         }
         for n in recent
     ]
 
-    unread = sum(1 for n in _pending_notifications if not n.get('sent_to_bot'))
+    unread = sum(1 for n in recent if not n.get('read', False))
     return jsonify({'notifications': notifs, 'unread': unread}), 200
 
 

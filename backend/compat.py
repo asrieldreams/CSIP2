@@ -7,6 +7,7 @@
 import re
 import secrets
 import time
+import urllib.parse as _urlparse
 from datetime import datetime
 from functools import wraps
 from flask import Blueprint, request, jsonify, session
@@ -38,6 +39,7 @@ def log_audit(action, target='', target_id=None, target_type='report',
         conn.close()
     except Exception as _ae:
         print(f'[audit] {_ae}')
+
 from db import get_connection
 
 compat_bp = Blueprint('compat', __name__)
@@ -59,6 +61,19 @@ def normalize_url(indicator: str) -> str:
         return 'http://' + indicator
     return indicator
 
+
+def _extract_domain(url):
+    """Strip protocol, www, path, query from a URL to get the bare domain."""
+    try:
+        parsed = _urlparse.urlparse(url if '://' in url else 'http://' + url)
+        domain = parsed.netloc.lower()
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        return domain
+    except Exception:
+        return url.lower()
+
+
 # ── In-memory token store ──────────────────────────────────
 # Format: { token: {'admin': {...}, 'expires_at': unix_timestamp} }
 _tokens = {}
@@ -78,18 +93,18 @@ FROM_API_TYPE = {v: k for k, v in TO_API_TYPE.items()}
 
 # ── Platform normalization ─────────────────────────────────
 PLATFORM_MAP = {
-    'whatsapp':      'WhatsApp',
-    'telegram':      'Telegram',
-    'sms':           'SMS',
-    'phone call':    'Phone Call',
-    'email':         'Email',
-    'facebook':      'Facebook',
-    'instagram':     'Instagram',
-    'carousell':     'Carousell',
+    'whatsapp':        'WhatsApp',
+    'telegram':        'Telegram',
+    'sms':             'SMS',
+    'phone call':      'Phone Call',
+    'email':           'Email',
+    'facebook':        'Facebook',
+    'instagram':       'Instagram',
+    'carousell':       'Carousell',
     'lazada / shopee': 'Lazada / Shopee',
-    'linkedin':      'LinkedIn',
-    'website':       'Website',
-    'other':         'Other',
+    'linkedin':        'LinkedIn',
+    'website':         'Website',
+    'other':           'Other',
 }
 
 
@@ -166,11 +181,11 @@ def report_to_scam(r):
         'indicator_type': ind_type,
         'amount_lost':    amount,
         'incident_date':  inc_date,
-        'report_count':      r.get('report_count') or 1,
-        'admin_locked':      bool(r.get('admin_locked', 0)),
+        'report_count':       r.get('report_count') or 1,
+        'admin_locked':       bool(r.get('admin_locked', 0)),
         'false_report_count': r.get('false_report_count') or 0,
-        'created_at':        created,
-        'updated_at':        created,
+        'created_at':         created,
+        'updated_at':         created,
     }
 
 
@@ -419,12 +434,39 @@ def api_submit_scam():
     try:
         conn = get_connection()
 
+        # ── Step 1: Exact match ────────────────────────────────
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT id, status FROM reports WHERE indicator = %s LIMIT 1",
                 (indicator,)
             )
             existing = cursor.fetchone()
+
+        # ── Step 2: Domain-based match for URLs ───────────────
+        # Catches cases like reporting https://www.aa.com/page when
+        # aa.com is already stored — increments count instead of
+        # creating a duplicate entry.
+        if not existing and indicator_type == 'url':
+            domain = _extract_domain(indicator)
+            if domain:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT id, status FROM reports
+                        WHERE (
+                            LOWER(indicator) = %s OR
+                            LOWER(indicator) = %s OR
+                            LOWER(indicator) LIKE %s OR
+                            LOWER(indicator) LIKE %s
+                        )
+                        AND status IN ('approved', 'pending')
+                        LIMIT 1
+                    """, (
+                        domain,
+                        f'http://{domain}',
+                        f'%{domain}%',
+                        f'%www.{domain}%',
+                    ))
+                    existing = cursor.fetchone()
 
         if existing and existing['status'] in ('approved', 'pending'):
             try:
@@ -442,10 +484,10 @@ def api_submit_scam():
                 count = 1
 
             return jsonify({
-                'report_id': f"SS-{str(existing['id']).zfill(5)}",
-                'duplicate': True,
+                'report_id':    f"SS-{str(existing['id']).zfill(5)}",
+                'duplicate':    True,
                 'report_count': count,
-                'message':   f'Already reported — noted by {count} people now'
+                'message':      f'Already reported — noted by {count} people now'
             }), 200
 
         with conn.cursor() as cursor:
@@ -493,7 +535,7 @@ def api_submit_scam():
 
 @compat_bp.route('/api/scanner/check', methods=['POST'])
 def api_scanner_check():
-    data  = request.get_json(silent=True) or {}
+    data      = request.get_json(silent=True) or {}
     raw_value = (data.get('value') or '').strip()
     if not raw_value:
         return jsonify({'error': 'Value is required'}), 400
@@ -679,9 +721,7 @@ def api_admin_patch_report(report_id):
         'removed':  ('rejected', None),
     }
     new_status, list_type = action_map.get(status, ('rejected', None))
-
     severity = data.get('severity') or None
-
     current_admin = get_current_admin()
 
     try:
@@ -971,18 +1011,9 @@ def api_delete_indicator(iid):
         return jsonify({'error': str(e)}), 500
 
 
-
 @compat_bp.route('/api/reports/<int:report_id>/false-report', methods=['POST'])
 @require_token
 def api_false_report(report_id):
-    """
-    Admin or community member marks a report as false.
-    Layered protection:
-    - admin_locked reports: IMMUNE — votes ignored
-    - confirmed (blacklist): only admin can change
-    - suspected (whitelist): 5 false votes → back to pending
-    - pending: 5 false votes → flagged for admin review
-    """
     current_admin = get_current_admin()
     try:
         conn = get_connection()
@@ -998,15 +1029,15 @@ def api_false_report(report_id):
 
         if row.get('admin_locked'):
             return jsonify({
-                'message':  'This report has been admin-verified and is immune to community votes.',
-                'immune':   True,
-                'status':   row['status'],
+                'message': 'This report has been admin-verified and is immune to community votes.',
+                'immune':  True,
+                'status':  row['status'],
             }), 200
 
         if row['status'] == 'approved' and row['list_type'] == 'blacklist':
             return jsonify({
-                'message':  'Confirmed reports can only be changed by an admin. Use the dashboard.',
-                'immune':   True,
+                'message': 'Confirmed reports can only be changed by an admin. Use the dashboard.',
+                'immune':  True,
             }), 200
 
         new_false_count = (row.get('false_report_count') or 0) + 1
@@ -1018,8 +1049,8 @@ def api_false_report(report_id):
         conn.commit()
 
         THRESHOLD = 5
-        demoted = False
-        new_tier = ''
+        demoted   = False
+        new_tier  = ''
 
         if new_false_count >= THRESHOLD:
             if row['status'] == 'approved' and row['list_type'] == 'whitelist':
@@ -1031,8 +1062,6 @@ def api_false_report(report_id):
                 conn.commit()
                 demoted  = True
                 new_tier = 'pending'
-                print(f"[false-report] Demoted {report_id} from suspected → pending ({new_false_count} false votes)")
-
                 log_audit(
                     action='Community Demoted',
                     target=f"SS-{str(report_id).zfill(5)}",
@@ -1050,8 +1079,6 @@ def api_false_report(report_id):
                 conn.commit()
                 demoted  = True
                 new_tier = 'admin_review'
-                print(f"[false-report] Report {report_id} flagged for admin review ({new_false_count} false votes)")
-
                 _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
                 log_audit(
                     action='Flagged for Review',
@@ -1062,12 +1089,12 @@ def api_false_report(report_id):
                 )
 
         return jsonify({
-            'message':          'Thank you for your feedback.',
-            'false_count':      new_false_count,
-            'threshold':        THRESHOLD,
-            'remaining':        max(0, THRESHOLD - new_false_count),
-            'demoted':          demoted,
-            'new_tier':         new_tier,
+            'message':     'Thank you for your feedback.',
+            'false_count': new_false_count,
+            'threshold':   THRESHOLD,
+            'remaining':   max(0, THRESHOLD - new_false_count),
+            'demoted':     demoted,
+            'new_tier':    new_tier,
         }), 200
 
     except Exception as e:
@@ -1079,25 +1106,24 @@ def api_false_report(report_id):
 @compat_bp.route('/api/admin/audit-log', methods=['GET'])
 @require_token
 def api_audit_log():
-    """Return paginated audit log with search + action + admin filters."""
     try:
         from db import get_connection as _gc
-        page       = max(1, int(request.args.get('page', 1)))
-        per_page   = min(50, int(request.args.get('per_page', 20)))
-        action_f   = request.args.get('action', '').strip()
-        admin_f    = request.args.get('admin', '').strip()
-        search_f   = request.args.get('search', '').strip()
+        page     = max(1, int(request.args.get('page', 1)))
+        per_page = min(50, int(request.args.get('per_page', 20)))
+        action_f = request.args.get('action', '').strip()
+        admin_f  = request.args.get('admin', '').strip()
+        search_f = request.args.get('search', '').strip()
 
         where, params = [], []
         if action_f:
             change_targets = {
                 'Confirmed': '→ Confirmed',
-                'Suspected':  '→ Suspected',
-                'Removed':    '→ Removed',
-                'Pending':    '→ Pending',
-                'Login':      'Login',
-                'Community':  'Community',
-                'Bulk':       'Bulk',
+                'Suspected': '→ Suspected',
+                'Removed':   '→ Removed',
+                'Pending':   '→ Pending',
+                'Login':     'Login',
+                'Community': 'Community',
+                'Bulk':      'Bulk',
             }
             if action_f in change_targets:
                 where.append('action LIKE %s')
@@ -1106,7 +1132,8 @@ def api_audit_log():
                 where.append('action = %s')
                 params.append(action_f)
         if admin_f:
-            where.append('admin_name = %s');       params.append(admin_f)
+            where.append('admin_name = %s')
+            params.append(admin_f)
         if search_f:
             where.append('(target LIKE %s OR detail LIKE %s OR action LIKE %s)')
             like = f'%{search_f}%'
@@ -1119,7 +1146,6 @@ def api_audit_log():
         with conn.cursor() as c:
             c.execute(f'SELECT COUNT(*) as n FROM audit_logs {where_sql}', params)
             total = c.fetchone()['n']
-
             c.execute(f"""
                 SELECT id, action, target, target_id, target_type,
                        detail, admin_name, ip_address, created_at
@@ -1128,7 +1154,6 @@ def api_audit_log():
                 LIMIT %s OFFSET %s
             """, params + [per_page, offset])
             rows = c.fetchall()
-
         conn.close()
 
         conn2 = _gc()
@@ -1142,15 +1167,15 @@ def api_audit_log():
         def fmt(row):
             created = row.get('created_at')
             return {
-                'id':          row['id'],
-                'action':      row['action'],
-                'target':      row.get('target', ''),
-                'target_id':   row.get('target_id'),
-                'detail':      row.get('detail', ''),
-                'admin':       row.get('admin_name', 'Admin'),
-                'ip':          row.get('ip_address', ''),
-                'created_at':  created.isoformat() if created else '',
-                'time_ago':    _time_ago(created) if created else '',
+                'id':         row['id'],
+                'action':     row['action'],
+                'target':     row.get('target', ''),
+                'target_id':  row.get('target_id'),
+                'detail':     row.get('detail', ''),
+                'admin':      row.get('admin_name', 'Admin'),
+                'ip':         row.get('ip_address', ''),
+                'created_at': created.isoformat() if created else '',
+                'time_ago':   _time_ago(created) if created else '',
             }
 
         return jsonify({
@@ -1168,7 +1193,6 @@ def api_audit_log():
 
 
 def _time_ago(dt):
-    """Human-readable time difference."""
     if not dt:
         return ''
     diff = datetime.utcnow() - dt.replace(tzinfo=None) if hasattr(dt, 'tzinfo') else datetime.utcnow() - dt
@@ -1177,6 +1201,7 @@ def _time_ago(dt):
     if secs < 3600:  return f'{secs//60}m ago'
     if secs < 86400: return f'{secs//3600}h ago'
     return f'{secs//86400}d ago'
+
 
 @compat_bp.route('/api/admin/spam', methods=['GET'])
 @require_token
