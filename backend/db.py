@@ -10,10 +10,6 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(BASE_DIR, '.env'))
 
-print("DB_HOST:", os.getenv("DB_HOST"))
-print("DB_PORT:", os.getenv("DB_PORT"))
-print("DB_NAME:", os.getenv("DB_NAME"))
-
 def get_connection():
     """Always returns a fresh working connection."""
     conn = pymysql.connect(

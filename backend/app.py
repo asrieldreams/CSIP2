@@ -13,13 +13,16 @@ from flask import Flask, request, jsonify, session
 from db import get_connection
 from datetime import datetime
 
-from admin import admin_bp
-from compat import compat_bp
+from admin import admin_bp  # kept for reference — not registered, superseded by compat_bp
+from compat import compat_bp, require_token
 from security import rate_limit, validate_report_payload, sanitise_text
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-app.secret_key = 'csip2-secret-change-this-before-deployment'
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
+    "https://scamwatchsg.netlify.app",
+    "null",  # allows local file:// testing to keep working
+]}})
+app.secret_key = os.environ.get('SECRET_KEY', 'csip2-secret-change-this-before-deployment')
 
 # ── /check rate limiting ───────────────────────────────────────
 import time as _time
@@ -127,7 +130,7 @@ def send_spike_alert(indicator, scam_type, count, minutes_span):
 
 
 
-app.register_blueprint(admin_bp)
+# app.register_blueprint(admin_bp)  # disabled — legacy/unused, reduces attack surface
 app.register_blueprint(compat_bp)
 
 
@@ -985,6 +988,7 @@ def my_reports():
 
 
 @app.route('/api/admin/notifications', methods=['GET'])
+@require_token
 def get_notifications():
     """Return spike alerts from in-memory store — no DB needed."""
     mark_sent = request.args.get('mark_sent') == '1'
@@ -1019,14 +1023,6 @@ def get_notifications():
     return jsonify({'notifications': notifs, 'unread': unread}), 200
 
 
-@app.route('/debug/notifications', methods=['GET'])
-def debug_notifications():
-    """Dev-only: inspect _pending_notifications directly."""
-    return jsonify({
-        'count':         len(_pending_notifications),
-        'spike_tracker': {k: len(v) for k, v in _spike_tracker.items()},
-        'notifications': _pending_notifications,
-    }), 200
 
 if __name__ == '__main__':
     import os
