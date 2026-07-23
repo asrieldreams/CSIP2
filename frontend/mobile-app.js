@@ -8,7 +8,7 @@
   if (window.innerWidth > 768) return;
 
   const page = window.location.pathname.split('/').pop() || 'introduction.html';
-  const API  = 'http://localhost:5000';
+  const API  = 'https://csip2-backend-production.up.railway.app';
 
   // ── Inject topbar ────────────────────────────────────────
   const topbar = document.createElement('div');

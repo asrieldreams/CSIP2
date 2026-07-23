@@ -1147,7 +1147,7 @@ body, nav, .page-header, .scam-card, .card,
     </div>
     ScamWatch
   </a>
-  <a href="introduction.html" class="nav-back">
+  <a href="introduction.html" class="nav-back" style="margin-right: auto; margin-left: 40.5rem;">
     <svg viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
     Back to Home
   </a>
@@ -1626,7 +1626,7 @@ body, nav, .page-header, .scam-card, .card,
 </div>
 
 <script>
-const API = 'http://localhost:5000/api';
+const API = 'https://csip2-backend-production.up.railway.app/api';
 
 // Helper — wraps fetch() and adds the JWT token header automatically
 async function apiFetch(endpoint, options = {}) {
@@ -1858,7 +1858,7 @@ async function checkDuplicate() {
     banner.innerHTML = '🔍 Checking database...';
 
     try {
-        const res  = await fetch('http://localhost:5000/check?url=' + encodeURIComponent(url));
+        const res  = await fetch('https://csip2-backend-production.up.railway.app/check?url=' + encodeURIComponent(url));
         const data = await res.json();
         _dupData   = data;
 
@@ -2021,19 +2021,29 @@ async function submitReport() {
     btn.disabled  = true;
 
     try {
-        const res  = await apiFetch('/scams', {
-            method: 'POST',
-            body:   JSON.stringify({
-                type:         selectedType,
-                severity:     selectedSeverity || 'medium',
-                platform:     document.getElementById('platform').value || null,
-                url:          document.getElementById('scam-url').value.trim() || null,
-                phone_number: document.getElementById('scammer-num').value.trim() || null,
-                title:        document.getElementById('scam-desc').value.trim().split('\n')[0].substring(0, 100),
-                description:  document.getElementById('scam-desc').value.trim(),
-                amount_lost:  document.getElementById('amount-lost').value || null,
-            })
-        });
+        const _urlVal   = document.getElementById('scam-url').value.trim();
+const _phoneVal = document.getElementById('scammer-num').value.trim();
+
+// Route indicator to the correct field based on what the user selected
+// scam-url field is reused for email addresses too since there's no separate email input
+const _isEmail   = selectedType === 'email'   || (_urlVal.includes('@') && !_urlVal.startsWith('http'));
+const _isPhone   = selectedType === 'phone'   || (_phoneVal.length > 0 && !_urlVal);
+const _isUrl     = !_isEmail && !_isPhone && _urlVal.length > 0;
+
+const res = await apiFetch('/scams', {
+    method: 'POST',
+    body:   JSON.stringify({
+        type:         selectedType,
+        severity:     selectedSeverity || 'medium',
+        platform:     document.getElementById('platform').value || null,
+        url:          _isUrl   ? _urlVal   : null,
+        phone_number: _isPhone ? _phoneVal : null,
+        email:        _isEmail ? _urlVal   : null,
+        title:        document.getElementById('scam-desc').value.trim().split('\n')[0].substring(0, 100),
+        description:  document.getElementById('scam-desc').value.trim(),
+        amount_lost:  document.getElementById('amount-lost').value || null,
+    })
+});   
         const data = await res.json();
 
         if (res.ok || res.status === 200) {
@@ -2145,7 +2155,7 @@ async function retrySubmit() {
 
     // Quick health check first
     try {
-        const ping = await fetch('http://localhost:5000/', {
+        const ping = await fetch('https://csip2-backend-production.up.railway.app/', {
             method: 'GET',
             signal: AbortSignal.timeout(2000)
         });

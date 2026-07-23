@@ -3,7 +3,7 @@
 //  Shows URL status, blocked count, report button
 // ============================================================
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = 'https://csip2-backend-production.up.railway.app';
 
 // ── Status card configs ───────────────────────────────────
 const STATUS_CONFIG = {

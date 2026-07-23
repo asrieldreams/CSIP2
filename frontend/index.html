@@ -1,114 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CSIP2 — Report a Scam</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=introduction.html">
+  <title>ScamWatch — Redirecting…</title>
 </head>
 <body>
-
-  
-  <nav>
-    <div class="nav-logo">🛡️ CSIP2</div>
-    <div class="nav-links">
-      <a href="index.html" class="active">Report a Scam</a>
-      <a href="feed.html">Scam Feed</a>
-    </div>
-  </nav>
-
-  
-  <section class="hero">
-    <h1>Report a Scam</h1>
-    <p>Help protect Singapore by reporting suspicious URLs, phone numbers, emails or messages.</p>
-  </section>
-
-  
-  <main class="container">
-    <div class="card">
-
-      <div id="success-banner" class="banner banner-success" style="display:none;">
-        ✅ Report submitted! Our admin team will review it shortly. Thank you.
-      </div>
-      <div id="error-banner" class="banner banner-error" style="display:none;"></div>
-
-      <div class="form-group">
-        <label for="indicator_type">What are you reporting? *</label>
-        <select id="indicator_type">
-          <option value="">-- Select type --</option>
-          <option value="url">Website URL</option>
-          <option value="phone">Phone Number</option>
-          <option value="email">Email Address</option>
-          <option value="message">Scam Message</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="indicator">Scam Indicator *</label>
-        <input type="text" id="indicator"
-          placeholder="e.g. http://fake-dbs.com or +65 9123 4567" maxlength="500"/>
-        <span class="hint">Paste the suspicious URL, phone number, email or message text.</span>
-      </div>
-
-      <div class="form-group">
-        <label for="scam_type">Scam Type *</label>
-        <select id="scam_type">
-          <option value="">-- Select scam type --</option>
-          <option value="Phishing">Phishing</option>
-          <option value="E-Commerce Scam">E-Commerce Scam</option>
-          <option value="Impersonation">Impersonation</option>
-          <option value="Love Scam">Love Scam</option>
-          <option value="Investment Scam">Investment Scam</option>
-          <option value="Others">Others</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="description">Description <span class="optional">(optional)</span></label>
-        <textarea id="description" rows="4" maxlength="500"
-          placeholder="Briefly describe what happened or what made this suspicious..."></textarea>
-        <span class="hint char-count">0 / 500 characters</span>
-      </div>
-
-      <button id="submit-btn" onclick="submitReport()">Submit Report</button>
-
-    </div>
-
-    
-    <div class="info-section">
-      <h2>How It Works</h2>
-      <div class="steps">
-        <div class="step">
-          <div class="step-icon">📢</div>
-          <div>
-            <strong>1. You Report</strong>
-            <p>Submit a suspicious URL, phone number, email or message.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-icon">🔍</div>
-          <div>
-            <strong>2. We Review</strong>
-            <p>Our admin team verifies and classifies the report.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-icon">🛡️</div>
-          <div>
-            <strong>3. Everyone Is Protected</strong>
-            <p>Confirmed scams are blacklisted. Suspected ones are flagged.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </main>
-
-  <footer>
-    <p>🛡️ CSIP2 — Crowdsourced Scam Intelligence Platform 2 &nbsp;|&nbsp; Temasek Polytechnic CDF AY24/25</p>
-  </footer>
-
-  <script src="app.js"></script>
-
+  <p>Redirecting to <a href="introduction.html">ScamWatch</a>…</p>
+  <script>window.location.replace('introduction.html');</script>
 </body>
 </html>

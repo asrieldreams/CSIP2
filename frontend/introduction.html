@@ -69,7 +69,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   .nav-logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links { display: flex; gap: 2rem; list-style: none; margin-left: auto; }
   .nav-links a { font-size: 0.9rem; color: var(--ink-soft); text-decoration: none; font-weight: 500; transition: color 0.2s; }
   .nav-links a:hover { color: var(--accent); }
   .nav-cta {
@@ -1303,11 +1303,6 @@ body, nav, .page-header, .scam-card, .card,
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
-      <!-- Hint badge -->
-      <div style="position:relative;z-index:1;background:rgba(0,193,124,0.15);border:1px solid rgba(0,193,124,0.3);border-radius:10px;padding:0.75rem 1rem;font-size:0.78rem;color:#4dffc4;display:flex;align-items:flex-start;gap:8px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <div><strong>Demo credentials</strong><br>Username: <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;">admin</code> &nbsp; Password: <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;">admin123</code></div>
-      </div>
     </div>
 
     <!-- Modal Body -->
@@ -1345,7 +1340,7 @@ body, nav, .page-header, .scam-card, .card,
 </div>
 
 <script>
-const API = 'http://localhost:5000/api';
+const API = 'https://csip2-backend-production.up.railway.app/api';
 
 // Helper — wraps fetch() and adds the JWT token header automatically
 async function apiFetch(endpoint, options = {}) {

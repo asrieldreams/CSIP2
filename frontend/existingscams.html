@@ -982,7 +982,7 @@ body, nav, .page-header, .scam-card, .card,
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'http://localhost:5000/api';
+const API = 'https://csip2-backend-production.up.railway.app/api';
 
 // Helper — wraps fetch() and adds the JWT token header automatically
 async function apiFetch(endpoint, options = {}) {
@@ -1101,7 +1101,7 @@ function renderCard(scam, idx) {
     <div class="scam-card" style="animation-delay:${delay}s" onclick="openModal(${scam.id})">
       <div class="card-top">
         <div class="card-header">
-          <div class="card-type-icon" style="background:${meta.bg}">${meta.icon}</div>
+          <div class="card-type-icon" style="background:${meta.bg} !important;--icon-bg:${meta.bg}">${meta.icon}</div>
           <div class="card-badges">
             ${severityBadge(scam.severity)}
             ${statusBadge(scam.status)}

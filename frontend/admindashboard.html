@@ -897,7 +897,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 </div>
 
 <script>
-const API = 'http://localhost:5000/api';
+const API = 'https://csip2-backend-production.up.railway.app/api';
 
 async function apiFetch(endpoint, options = {}) {
     const token = localStorage.getItem('sw_token');
@@ -1713,7 +1713,7 @@ function clearNotifications() {
 
 async function pollNotifications() {
     try {
-        const res  = await fetch('http://localhost:5000/api/admin/notifications');
+        const res = await apiFetch('/admin/notifications');
         if (!res.ok) return;
         const data = await res.json();
         const notifs = data.notifications || [];

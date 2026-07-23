@@ -1341,54 +1341,53 @@ def main():
 
     # ── Check ConversationHandler ────────────────────────────
     check_conv = ConversationHandler(
-        entry_points=[
-            CommandHandler('check', check_start),
-            MessageHandler(filters.Regex(r'^🔍 Check$'), check_start),
-            # ← "Check Another" button re-enters here
-            CallbackQueryHandler(check_another_callback, pattern='^check_another$'),
+    entry_points=[
+        CommandHandler('check', check_start),
+        MessageHandler(filters.Regex(r'^🔍 Check$'), check_start),
+        CallbackQueryHandler(check_another_callback, pattern='^check_another$'),
+    ],
+    states={
+        WAITING_FOR_CHECK_URL: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_check_url),
         ],
-        states={
-            WAITING_FOR_CHECK_URL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_check_url),
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel_command)],
-        name='check_conv',
-        per_message=False,
-    )
+    },
+    fallbacks=[CommandHandler('cancel', cancel_command)],
+    name='check_conv',
+    per_message=False,
+    allow_reentry=True,  # ← ADD THIS LINE
+)
 
     report_conv = ConversationHandler(
-        entry_points=[
-            CommandHandler('report', report_command),
-            MessageHandler(filters.Regex(r'^📢 Report$'), report_command),
-            # Forwarded message "Report This" button
-            CallbackQueryHandler(handle_forwarded_report_start, pattern='^fwd:report$'),
-            # Check result "Report This" button — skips to Step 2
-            CallbackQueryHandler(report_from_check_callback, pattern='^report_from_check$'),
+    entry_points=[
+        CommandHandler('report', report_command),
+        MessageHandler(filters.Regex(r'^📢 Report$'), report_command),
+        CallbackQueryHandler(handle_forwarded_report_start, pattern='^fwd:report$'),
+        CallbackQueryHandler(report_from_check_callback, pattern='^report_from_check$'),
+    ],
+    states={
+        WAITING_FOR_INDICATOR: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_indicator)
         ],
-        states={
-            WAITING_FOR_INDICATOR: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_indicator)
-            ],
-            WAITING_FOR_SCAM_TYPE: [
-                CallbackQueryHandler(receive_scam_type_callback, pattern='^type:')
-            ],
-            WAITING_FOR_SEVERITY: [
-                CallbackQueryHandler(receive_severity_callback, pattern='^sev:')
-            ],
-            WAITING_FOR_PLATFORM: [
-                CallbackQueryHandler(receive_platform_callback, pattern='^plt:')
-            ],
-            WAITING_FOR_DESC: [
-                CommandHandler('skip', skip_description),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_description)
-            ],
-            WAITING_FOR_CONFIRM: [
-                CallbackQueryHandler(receive_confirmation, pattern='^(CONFIRM|CANCEL)$')
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel_command)]
-    )
+        WAITING_FOR_SCAM_TYPE: [
+            CallbackQueryHandler(receive_scam_type_callback, pattern='^type:')
+        ],
+        WAITING_FOR_SEVERITY: [
+            CallbackQueryHandler(receive_severity_callback, pattern='^sev:')
+        ],
+        WAITING_FOR_PLATFORM: [
+            CallbackQueryHandler(receive_platform_callback, pattern='^plt:')
+        ],
+        WAITING_FOR_DESC: [
+            CommandHandler('skip', skip_description),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_description)
+        ],
+        WAITING_FOR_CONFIRM: [
+            CallbackQueryHandler(receive_confirmation, pattern='^(CONFIRM|CANCEL)$')
+        ],
+    },
+    fallbacks=[CommandHandler('cancel', cancel_command)],
+    allow_reentry=True,  # ← ADD THIS LINE
+)
 
     # ── Register all handlers ──────────────────────────────
     app.add_handler(check_conv)

@@ -419,12 +419,21 @@ def api_submit_scam():
         except ValueError:
             incident_date = None
 
+    email   = (data.get('email')   or '').strip()
+    message = (data.get('message') or '').strip()
+
     if url:
         indicator      = url
         indicator_type = 'url'
     elif phone_number:
         indicator      = re.sub(r'[\s\-]', '', phone_number)
         indicator_type = 'phone'
+    elif email:
+        indicator      = email.lower()
+        indicator_type = 'email'
+    elif message:
+        indicator      = message[:200]
+        indicator_type = 'message'
     else:
         indicator      = description[:100] if description else 'Unknown'
         indicator_type = 'message'
@@ -433,7 +442,6 @@ def api_submit_scam():
 
     try:
         conn = get_connection()
-
         # ── Step 1: Exact match ────────────────────────────────
         with conn.cursor() as cursor:
             cursor.execute(
