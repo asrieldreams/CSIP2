@@ -62,32 +62,6 @@ def normalize_url(indicator: str) -> str:
     return indicator
 
 
-def _url_variants_compat(u):
-    """
-    Generate all URL variants for duplicate detection:
-    http/https x www/no-www x slash/no-slash PLUS bare domain (no protocol).
-    This ensures look.com and http://look.com are treated as the same indicator.
-    """
-    u = u.rstrip('/')
-    if u.startswith('http://') or u.startswith('https://'):
-        rest = u.split('://', 1)[1]
-    else:
-        rest = u
-    rest_nw = rest[4:] if rest.startswith('www.') else rest
-    rest_ww = 'www.' + rest_nw
-    variants = set()
-    for proto in ('http://', 'https://'):
-        for r in (rest_nw, rest_ww):
-            variants.add(proto + r)
-            variants.add(proto + r + '/')
-    # Also include bare domain variants (no protocol)
-    # so existing bare-domain records are always found
-    for r in (rest_nw, rest_ww):
-        variants.add(r)
-        variants.add(r + '/')
-    return list(variants)
-
-
 def _extract_domain(url):
     """Strip protocol, www, path, query from a URL to get the bare domain."""
     try:
@@ -101,6 +75,7 @@ def _extract_domain(url):
 
 
 # ── In-memory token store ──────────────────────────────────
+# Format: { token: {'admin': {...}, 'expires_at': unix_timestamp} }
 _tokens = {}
 
 # ── Scam type mappings ─────────────────────────────────────
@@ -147,7 +122,7 @@ def get_current_admin():
     entry = _tokens.get(token)
     if not entry:
         return None
-    if time.time() > entry.get('expires_at', 0):
+    if time.time() > entry['expires_at']:
         _tokens.pop(token, None)
         return None
     return entry['admin']
@@ -360,10 +335,13 @@ def api_scams_stats():
         with conn.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved'")
             total = cursor.fetchone()['c']
+
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND list_type = 'blacklist'")
             high = cursor.fetchone()['c']
+
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved'")
             verified = cursor.fetchone()['c']
+
             today = datetime.utcnow().date()
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE DATE(submitted_at) = %s", (today,))
             today_count = cursor.fetchone()['c']
@@ -376,7 +354,10 @@ def api_scams_stats():
         }), 200
 
     except Exception as e:
-        return jsonify({'total': 0, 'verified': 0, 'high_severity': 0, 'today': 0}), 200
+        return jsonify({
+            'total': 0, 'verified': 0,
+            'high_severity': 0, 'today': 0
+        }), 200
 
 
 @compat_bp.route('/api/scams/<int:scam_id>', methods=['GET'])
@@ -387,8 +368,7 @@ def api_get_scam(scam_id):
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type, description,
                        source, list_type, submitted_at, status,
-                       severity, platform, amount_lost, incident_date, report_count,
-                       admin_locked, false_report_count
+                       severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                 FROM reports WHERE id = %s
             """, (scam_id,))
             row = cursor.fetchone()
@@ -443,15 +423,7 @@ def api_submit_scam():
     message = (data.get('message') or '').strip()
 
     if url:
-        # ── NORMALIZE URL: always store with http:// prefix ──────────
-        # This ensures look.com and http://look.com are treated identically
-        _u = url.strip()
-        if _u and not _u.startswith('http://') and not _u.startswith('https://'):
-            _u = 'http://' + _u
-        # Strip trailing slash from root URLs: http://look.com/ → http://look.com
-        if _u.endswith('/') and _u.count('/') == 3:
-            _u = _u.rstrip('/')
-        indicator      = _u
+        indicator      = url
         indicator_type = 'url'
     elif phone_number:
         indicator      = re.sub(r'[\s\-]', '', phone_number)
@@ -470,30 +442,41 @@ def api_submit_scam():
 
     try:
         conn = get_connection()
+        # ── Step 1: Exact match ────────────────────────────────
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, status FROM reports WHERE indicator = %s LIMIT 1",
+                (indicator,)
+            )
+            existing = cursor.fetchone()
 
-        # ── Duplicate check using all URL variants ────────────────────
-        # Checks http/https x www/no-www x slash/no-slash x bare domain
-        # so look.com, http://look.com, https://www.look.com all match
-        if indicator_type == 'url':
-            dup_variants = _url_variants_compat(indicator)
-            dup_ph       = ','.join(['%s'] * len(dup_variants))
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    f"SELECT id, status FROM reports WHERE indicator IN ({dup_ph}) "
-                    f"AND status IN ('approved', 'pending') LIMIT 1",
-                    dup_variants
-                )
-                existing = cursor.fetchone()
-        else:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, status FROM reports WHERE indicator = %s "
-                    "AND status IN ('approved', 'pending') LIMIT 1",
-                    (indicator,)
-                )
-                existing = cursor.fetchone()
+        # ── Step 2: Domain-based match for URLs ───────────────
+        # Catches cases like reporting https://www.aa.com/page when
+        # aa.com is already stored — increments count instead of
+        # creating a duplicate entry.
+        if not existing and indicator_type == 'url':
+            domain = _extract_domain(indicator)
+            if domain:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT id, status FROM reports
+                        WHERE (
+                            LOWER(indicator) = %s OR
+                            LOWER(indicator) = %s OR
+                            LOWER(indicator) LIKE %s OR
+                            LOWER(indicator) LIKE %s
+                        )
+                        AND status IN ('approved', 'pending')
+                        LIMIT 1
+                    """, (
+                        domain,
+                        f'http://{domain}',
+                        f'%{domain}%',
+                        f'%www.{domain}%',
+                    ))
+                    existing = cursor.fetchone()
 
-        if existing:
+        if existing and existing['status'] in ('approved', 'pending'):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
@@ -503,7 +486,7 @@ def api_submit_scam():
                 conn.commit()
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT report_count FROM reports WHERE id = %s", (existing['id'],))
-                    row   = cursor.fetchone()
+                    row = cursor.fetchone()
                     count = row['report_count'] if row else 1
             except Exception:
                 count = 1
@@ -515,7 +498,6 @@ def api_submit_scam():
                 'message':      f'Already reported — noted by {count} people now'
             }), 200
 
-        # ── Insert new report ─────────────────────────────────────────
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO reports
@@ -677,36 +659,31 @@ def api_admin_reports():
     if status == 'verified':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date,
-                           report_count, admin_locked, false_report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'approved' AND list_type = 'blacklist'"""
         params = []
     elif status == 'flagged':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date,
-                           report_count, admin_locked, false_report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'approved' AND list_type = 'whitelist'"""
         params = []
     elif status == 'removed':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date,
-                           report_count, admin_locked, false_report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'rejected'"""
         params = []
     elif status == 'pending':
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date,
-                           report_count, admin_locked, false_report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'pending'"""
         params = []
     else:
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
-                           severity, platform, amount_lost, incident_date,
-                           report_count, admin_locked, false_report_count
+                           severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE 1=1"""
         params = []
 
@@ -757,6 +734,7 @@ def api_admin_patch_report(report_id):
 
     try:
         conn = get_connection()
+
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT indicator, scam_type, status, list_type FROM reports WHERE id = %s",
@@ -820,6 +798,7 @@ def api_admin_patch_report(report_id):
                         (report_id,)
                     )
                 conn.commit()
+                print(f'[admin] Rejected report {report_id} — rejection_count incremented')
             except Exception as e:
                 print(f'[admin] Reject reset error: {e}')
 
@@ -934,6 +913,7 @@ def api_analytics():
                 GROUP BY scam_type ORDER BY total DESC
             """)
             by_type = cursor.fetchall()
+
             cursor.execute("""
                 SELECT platform, COUNT(*) as total
                 FROM reports WHERE status = 'approved' AND platform IS NOT NULL
@@ -1129,7 +1109,7 @@ def api_false_report(report_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ── Stubs + Audit Log ──────────────────────────────────────
+# ── Stubs ──────────────────────────────────────────────────
 
 @compat_bp.route('/api/admin/audit-log', methods=['GET'])
 @require_token
@@ -1160,7 +1140,8 @@ def api_audit_log():
                 where.append('action = %s')
                 params.append(action_f)
         if admin_f:
-            where.append('admin_name = %s'); params.append(admin_f)
+            where.append('admin_name = %s')
+            params.append(admin_f)
         if search_f:
             where.append('(target LIKE %s OR detail LIKE %s OR action LIKE %s)')
             like = f'%{search_f}%'
