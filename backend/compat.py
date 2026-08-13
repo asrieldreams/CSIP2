@@ -423,7 +423,12 @@ def api_submit_scam():
     message = (data.get('message') or '').strip()
 
     if url:
-        indicator      = url
+        _u = url.strip()
+        if _u and not _u.startswith('http://') and not _u.startswith('https://'):
+            _u = 'http://' + _u
+        if _u.endswith('/') and _u.count('/') == 3:
+            _u = _u.rstrip('/')
+        indicator      = _u
         indicator_type = 'url'
     elif phone_number:
         indicator      = re.sub(r'[\s\-]', '', phone_number)
