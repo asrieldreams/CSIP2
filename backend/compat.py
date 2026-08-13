@@ -6,14 +6,10 @@
 
 import re
 import secrets
-import time
-import urllib.parse as _urlparse
 from datetime import datetime
 from functools import wraps
 from flask import Blueprint, request, jsonify, session
-from security import rate_limit
-
-TOKEN_TTL_SECONDS = 8 * 60 * 60  # 8 hours
+from datetime import datetime
 
 def log_audit(action, target='', target_id=None, target_type='report',
               detail='', admin_name='Admin', ip=None):
@@ -39,7 +35,6 @@ def log_audit(action, target='', target_id=None, target_type='report',
         conn.close()
     except Exception as _ae:
         print(f'[audit] {_ae}')
-
 from db import get_connection
 
 compat_bp = Blueprint('compat', __name__)
@@ -50,32 +45,21 @@ def normalize_url(indicator: str) -> str:
     indicator = indicator.strip()
     if not indicator:
         return indicator
+    # Already has protocol
     if indicator.startswith('http://') or indicator.startswith('https://'):
         return indicator
+    # Common patterns that need http://
     prefixes = ['www.', 'bit.ly/', 't.me/', 'wa.me/',
                 'tinyurl.com/', 'goo.gl/', 'tiny.cc/']
     for p in prefixes:
         if indicator.lower().startswith(p):
             return 'http://' + indicator
+    # Has a dot, no spaces, not email → likely a domain
     if '.' in indicator and ' ' not in indicator and '@' not in indicator:
         return 'http://' + indicator
     return indicator
 
-
-def _extract_domain(url):
-    """Strip protocol, www, path, query from a URL to get the bare domain."""
-    try:
-        parsed = _urlparse.urlparse(url if '://' in url else 'http://' + url)
-        domain = parsed.netloc.lower()
-        if domain.startswith('www.'):
-            domain = domain[4:]
-        return domain
-    except Exception:
-        return url.lower()
-
-
 # ── In-memory token store ──────────────────────────────────
-# Format: { token: {'admin': {...}, 'expires_at': unix_timestamp} }
 _tokens = {}
 
 # ── Scam type mappings ─────────────────────────────────────
@@ -93,18 +77,18 @@ FROM_API_TYPE = {v: k for k, v in TO_API_TYPE.items()}
 
 # ── Platform normalization ─────────────────────────────────
 PLATFORM_MAP = {
-    'whatsapp':        'WhatsApp',
-    'telegram':        'Telegram',
-    'sms':             'SMS',
-    'phone call':      'Phone Call',
-    'email':           'Email',
-    'facebook':        'Facebook',
-    'instagram':       'Instagram',
-    'carousell':       'Carousell',
+    'whatsapp':      'WhatsApp',
+    'telegram':      'Telegram',
+    'sms':           'SMS',
+    'phone call':    'Phone Call',
+    'email':         'Email',
+    'facebook':      'Facebook',
+    'instagram':     'Instagram',
+    'carousell':     'Carousell',
     'lazada / shopee': 'Lazada / Shopee',
-    'linkedin':        'LinkedIn',
-    'website':         'Website',
-    'other':           'Other',
+    'linkedin':      'LinkedIn',
+    'website':       'Website',
+    'other':         'Other',
 }
 
 
@@ -119,13 +103,7 @@ def get_current_admin():
     token = get_token()
     if not token:
         return None
-    entry = _tokens.get(token)
-    if not entry:
-        return None
-    if time.time() > entry['expires_at']:
-        _tokens.pop(token, None)
-        return None
-    return entry['admin']
+    return _tokens.get(token)
 
 
 def require_token(f):
@@ -146,8 +124,10 @@ def report_to_scam(r):
     submitted = r.get('submitted_at')
     db_status = r.get('status', 'pending')
 
+    # Use stored severity or derive from list_type
     severity = r.get('severity') or ('high' if list_type == 'blacklist' else 'medium')
 
+    # Safe conversions for types that can't be JSON serialized
     try:
         amount = float(r['amount_lost']) if r.get('amount_lost') is not None else None
     except (TypeError, ValueError):
@@ -170,6 +150,8 @@ def report_to_scam(r):
         'description':    r.get('description') or f"Reported via {r.get('source','website')}",
         'type':           TO_API_TYPE.get(scam_raw, 'other'),
         'severity':       severity or 'medium',
+        # approved+blacklist = verified (confirmed)
+        # approved+whitelist = flagged  (suspected)
         'status':         ('verified' if list_type == 'blacklist' else 'flagged')
                           if db_status == 'approved' else
                           'removed' if db_status == 'rejected' else 'pending',
@@ -177,15 +159,16 @@ def report_to_scam(r):
         'url':            indicator if ind_type == 'url'   else None,
         'phone_number':   indicator if ind_type == 'phone' else None,
         'email':          indicator if ind_type == 'email' else None,
+        # Universal indicator field for all types
         'indicator':      indicator,
         'indicator_type': ind_type,
         'amount_lost':    amount,
         'incident_date':  inc_date,
-        'report_count':       r.get('report_count') or 1,
-        'admin_locked':       bool(r.get('admin_locked', 0)),
+        'report_count':      r.get('report_count') or 1,
+        'admin_locked':      bool(r.get('admin_locked', 0)),
         'false_report_count': r.get('false_report_count') or 0,
-        'created_at':         created,
-        'updated_at':         created,
+        'created_at':        created,
+        'updated_at':        created,
     }
 
 
@@ -227,10 +210,7 @@ def api_login():
                 'role':     row['role'],
                 'initials': ''.join(p[0].upper() for p in row['name'].split()[:2]),
             }
-            _tokens[token] = {
-                'admin':      admin_data,
-                'expires_at': time.time() + TOKEN_TTL_SECONDS,
-            }
+            _tokens[token] = admin_data
             session['admin_logged_in'] = True
             session['admin_id']        = row['id']
             session['admin_username']  = row['name']
@@ -247,15 +227,6 @@ def api_login():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-@compat_bp.route('/api/auth/logout', methods=['POST'])
-def api_logout():
-    token = get_token()
-    if token:
-        _tokens.pop(token, None)
-    session.clear()
-    return jsonify({'message': 'Logged out'}), 200
 
 
 @compat_bp.route('/api/auth/me', methods=['GET'])
@@ -336,6 +307,7 @@ def api_scams_stats():
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved'")
             total = cursor.fetchone()['c']
 
+            # Use list_type for high severity (works even without severity column)
             cursor.execute("SELECT COUNT(*) as c FROM reports WHERE status = 'approved' AND list_type = 'blacklist'")
             high = cursor.fetchone()['c']
 
@@ -354,6 +326,7 @@ def api_scams_stats():
         }), 200
 
     except Exception as e:
+        # Return zeros instead of error so frontend doesn't break
         return jsonify({
             'total': 0, 'verified': 0,
             'high_severity': 0, 'today': 0
@@ -380,11 +353,11 @@ def api_get_scam(scam_id):
 
 
 @compat_bp.route('/api/scams', methods=['POST'])
-@rate_limit
 def api_submit_scam():
     """Website reportscam.html posts here — saves ALL fields to reports table."""
     data = request.get_json(silent=True) or {}
 
+    # ── Extract all fields from website form ───────────────
     url           = (data.get('url')          or '').strip()
     phone_number  = (data.get('phone_number') or '').strip()
     description   = (data.get('description')  or '').strip()
@@ -394,11 +367,14 @@ def api_submit_scam():
     amount_lost   = data.get('amount_lost')
     incident_date = data.get('incident_date') or None
 
+    # Normalize platform name
     platform = PLATFORM_MAP.get(raw_platform.lower(), raw_platform) or 'Website'
 
+    # Normalize severity
     if severity not in ('low', 'medium', 'high'):
         severity = 'medium'
 
+    # Normalize and validate amount_lost
     try:
         amount_lost = float(amount_lost) if amount_lost else None
         if amount_lost is not None:
@@ -411,6 +387,7 @@ def api_submit_scam():
     except (ValueError, TypeError):
         return jsonify({'error': 'Amount lost must be a valid number.'}), 400
 
+    # Normalize and validate incident_date
     if incident_date:
         try:
             parsed_date = datetime.strptime(incident_date, '%Y-%m-%d')
@@ -419,21 +396,19 @@ def api_submit_scam():
         except ValueError:
             incident_date = None
 
-    email   = (data.get('email')   or '').strip()
-    message = (data.get('message') or '').strip()
-
+    # Determine indicator
     if url:
-        indicator      = url
+        # Normalize URL: add http:// if missing, strip trailing slash
+        _u = url.strip()
+        if _u and not _u.startswith('http://') and not _u.startswith('https://'):
+            _u = 'http://' + _u
+        if _u.endswith('/') and _u.count('/') == 3:
+            _u = _u.rstrip('/')
+        indicator      = _u
         indicator_type = 'url'
     elif phone_number:
         indicator      = re.sub(r'[\s\-]', '', phone_number)
         indicator_type = 'phone'
-    elif email:
-        indicator      = email.lower()
-        indicator_type = 'email'
-    elif message:
-        indicator      = message[:200]
-        indicator_type = 'message'
     else:
         indicator      = description[:100] if description else 'Unknown'
         indicator_type = 'message'
@@ -442,7 +417,8 @@ def api_submit_scam():
 
     try:
         conn = get_connection()
-        # ── Step 1: Exact match ────────────────────────────────
+
+        # Duplicate check
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT id, status FROM reports WHERE indicator = %s LIMIT 1",
@@ -450,33 +426,8 @@ def api_submit_scam():
             )
             existing = cursor.fetchone()
 
-        # ── Step 2: Domain-based match for URLs ───────────────
-        # Catches cases like reporting https://www.aa.com/page when
-        # aa.com is already stored — increments count instead of
-        # creating a duplicate entry.
-        if not existing and indicator_type == 'url':
-            domain = _extract_domain(indicator)
-            if domain:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT id, status FROM reports
-                        WHERE (
-                            LOWER(indicator) = %s OR
-                            LOWER(indicator) = %s OR
-                            LOWER(indicator) LIKE %s OR
-                            LOWER(indicator) LIKE %s
-                        )
-                        AND status IN ('approved', 'pending')
-                        LIMIT 1
-                    """, (
-                        domain,
-                        f'http://{domain}',
-                        f'%{domain}%',
-                        f'%www.{domain}%',
-                    ))
-                    existing = cursor.fetchone()
-
         if existing and existing['status'] in ('approved', 'pending'):
+            # Increment report_count
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
@@ -484,6 +435,7 @@ def api_submit_scam():
                         (existing['id'],)
                     )
                 conn.commit()
+                # Get updated count
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT report_count FROM reports WHERE id = %s", (existing['id'],))
                     row = cursor.fetchone()
@@ -492,12 +444,13 @@ def api_submit_scam():
                 count = 1
 
             return jsonify({
-                'report_id':    f"SS-{str(existing['id']).zfill(5)}",
-                'duplicate':    True,
+                'report_id': f"SS-{str(existing['id']).zfill(5)}",
+                'duplicate': True,
                 'report_count': count,
-                'message':      f'Already reported — noted by {count} people now'
+                'message':   f'Already reported — noted by {count} people now'
             }), 200
 
+        # ── Insert with all new fields ─────────────────────
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO reports
@@ -518,6 +471,7 @@ def api_submit_scam():
         }), 201
 
     except Exception as e:
+        # If new columns don't exist yet, fall back to basic insert
         try:
             conn2 = get_connection()
             with conn2.cursor() as cursor:
@@ -543,17 +497,19 @@ def api_submit_scam():
 
 @compat_bp.route('/api/scanner/check', methods=['POST'])
 def api_scanner_check():
-    data      = request.get_json(silent=True) or {}
+    data  = request.get_json(silent=True) or {}
     raw_value = (data.get('value') or '').strip()
     if not raw_value:
         return jsonify({'error': 'Value is required'}), 400
 
+    # Normalize — add http:// if looks like URL without protocol
     normalized = normalize_url(raw_value)
     value      = normalized.lower()
 
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
+            # Try exact match first (with normalized URL)
             cursor.execute("""
                 SELECT id, indicator_type, indicator, scam_type,
                        description, list_type, severity, report_count
@@ -564,6 +520,7 @@ def api_scanner_check():
             row = cursor.fetchone()
 
             if not row:
+                # Try substring match (catches partial domains)
                 cursor.execute("""
                     SELECT id, indicator_type, indicator, scam_type,
                            description, list_type, severity, report_count
@@ -574,6 +531,7 @@ def api_scanner_check():
                 row = cursor.fetchone()
 
             if not row and '/' in value:
+                # Try matching just the domain part
                 domain = value.split('/')[2] if value.startswith('http') else value.split('/')[0]
                 cursor.execute("""
                     SELECT id, indicator_type, indicator, scam_type,
@@ -636,10 +594,10 @@ def api_admin_stats():
         return jsonify({
             'pending':     pending,
             'blacklisted': blacklisted,
-            'whitelisted': whitelisted,
+            'whitelisted': whitelisted,   # suspected count
             'rejected':    rejected,
-            'verified':    blacklisted,
-            'flagged':     whitelisted,
+            'verified':    blacklisted,   # only blacklist = confirmed
+            'flagged':     whitelisted,   # whitelist = suspected
             'total':       total,
             'today':       today_count,
             'total_lost':  total_lost,
@@ -656,13 +614,16 @@ def api_admin_reports():
     per_page = min(100, int(request.args.get('per_page', 20)))
     page     = max(1, int(request.args.get('page', 1)))
 
+    # Build filter based on tier
     if status == 'verified':
+        # Confirmed = approved + blacklist
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
                            severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
                     FROM reports WHERE status = 'approved' AND list_type = 'blacklist'"""
         params = []
     elif status == 'flagged':
+        # Suspected = approved + whitelist
         query  = """SELECT id, indicator_type, indicator, scam_type, description,
                            source, status, list_type, submitted_at,
                            severity, platform, amount_lost, incident_date, report_count, admin_locked, false_report_count
@@ -729,7 +690,10 @@ def api_admin_patch_report(report_id):
         'removed':  ('rejected', None),
     }
     new_status, list_type = action_map.get(status, ('rejected', None))
+
+    # Use admin's chosen severity — NEVER override with hardcoded value
     severity = data.get('severity') or None
+
     current_admin = get_current_admin()
 
     try:
@@ -742,6 +706,7 @@ def api_admin_patch_report(report_id):
             )
             rpt = cursor.fetchone()
 
+        # Build human-readable "before" label from current DB state
         if rpt:
             _old_status    = rpt.get('status', '')
             _old_list_type = rpt.get('list_type', '')
@@ -758,6 +723,7 @@ def api_admin_patch_report(report_id):
         else:
             old_label = 'Unknown'
 
+        # Build update — only set severity if admin explicitly chose one
         with conn.cursor() as cursor:
             if severity:
                 cursor.execute(
@@ -771,6 +737,7 @@ def api_admin_patch_report(report_id):
                 )
         conn.commit()
 
+        # Set admin_locked + admin_classified to protect from community override
         try:
             admin_locked = 1 if status == 'verified' else 0
             with conn.cursor() as cursor:
@@ -782,13 +749,12 @@ def api_admin_patch_report(report_id):
         except Exception:
             pass
 
+        # If removed/rejected → reset count, clear votes, increment rejection_count
         if status == 'removed':
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "UPDATE reports SET report_count = 0, "
-                        "rejection_count = COALESCE(rejection_count, 0) + 1 "
-                        "WHERE id = %s",
+                        "UPDATE reports SET report_count = 0, "                        "rejection_count = COALESCE(rejection_count, 0) + 1 "                        "WHERE id = %s",
                         (report_id,)
                     )
                 conn.commit()
@@ -812,8 +778,7 @@ def api_admin_patch_report(report_id):
         action_label = f'Changed: {old_label} → {new_label}'
 
         try:
-            _admin_name = current_admin if isinstance(current_admin, str) else \
-                          (current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin')
+            _admin_name = current_admin if isinstance(current_admin, str) else                           (current_admin.get('username','Admin') if isinstance(current_admin,dict) else 'Admin')
             log_audit(
                 action      = action_label,
                 target      = f"SS-{str(report_id).zfill(5)}",
@@ -843,14 +808,12 @@ def api_admin_delete_report(report_id):
                 "UPDATE reports SET status = 'rejected' WHERE id = %s", (report_id,)
             )
         conn.commit()
-        current_admin = get_current_admin()
-        _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
         log_audit(
             action     = 'Removed',
             target     = f"SS-{str(report_id).zfill(5)}",
             target_id  = report_id,
             detail     = f"{rpt['scam_type']}: {rpt['indicator'][:50]}" if rpt else '',
-            admin_name = _admin_name,
+            admin_name = session.get('admin_name', 'Admin'),
             ip         = request.remote_addr,
         )
         return jsonify({'message': f'Report {report_id} removed'}), 200
@@ -864,11 +827,12 @@ def api_admin_bulk():
     data   = request.get_json(silent=True) or {}
     ids    = data.get('ids', [])
     status = data.get('status', 'removed')
+    # Tier map — controls what DB values to set
     action_map = {
-        'verified': ('approved', 'blacklist', 'high'),
-        'flagged':  ('approved', 'whitelist', 'medium'),
-        'pending':  ('pending',  None,        None),
-        'removed':  ('rejected', None,        None),
+        'verified': ('approved', 'blacklist', 'high'),    # Confirmed
+        'flagged':  ('approved', 'whitelist', 'medium'),  # Suspected
+        'pending':  ('pending',  None,        None),      # Back to pending
+        'removed':  ('rejected', None,        None),      # Removed
     }
     new_status, list_type, severity = action_map.get(status, ('rejected', None, None))
     try:
@@ -886,13 +850,11 @@ def api_admin_bulk():
             'pending':  'Reverted to Pending',
             'removed':  'Removed',
         }.get(status, 'Updated')
-        current_admin = get_current_admin()
-        _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
         log_audit(
             action     = f'Bulk {action_label}',
             target     = f"{len(ids)} reports",
             detail     = f"IDs: {', '.join(str(i) for i in ids[:10])}{'…' if len(ids)>10 else ''}",
-            admin_name = _admin_name,
+            admin_name = session.get('admin_name', 'Admin'),
             ip         = request.remote_addr,
         )
         return jsonify({'message': f'{len(ids)} reports updated'}), 200
@@ -982,13 +944,11 @@ def api_add_indicator():
                 VALUES (%s, %s, 'manual')
             """, (data.get('value', ''), data.get('type', 'URL')))
         conn.commit()
-        current_admin = get_current_admin()
-        _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
         log_audit(
             action     = 'Indicator Added',
             target     = data.get('value', '')[:60],
             detail     = f"Type: {data.get('type', 'URL')}",
-            admin_name = _admin_name,
+            admin_name = session.get('admin_name', 'Admin'),
             ip         = request.remote_addr,
         )
         return jsonify({'message': 'Indicator added'}), 201
@@ -1004,14 +964,12 @@ def api_delete_indicator(iid):
         with conn.cursor() as cursor:
             cursor.execute("DELETE FROM scanner_indicators WHERE id = %s", (iid,))
         conn.commit()
-        current_admin = get_current_admin()
-        _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
         log_audit(
             action     = 'Indicator Deleted',
             target     = f"IND-{iid}",
             target_id  = iid,
             detail     = 'Scanner indicator removed',
-            admin_name = _admin_name,
+            admin_name = session.get('admin_name', 'Admin'),
             ip         = request.remote_addr,
         )
         return jsonify({'message': 'Deleted'}), 200
@@ -1019,9 +977,18 @@ def api_delete_indicator(iid):
         return jsonify({'error': str(e)}), 500
 
 
+
 @compat_bp.route('/api/reports/<int:report_id>/false-report', methods=['POST'])
 @require_token
 def api_false_report(report_id):
+    """
+    Admin or community member marks a report as false.
+    Layered protection:
+    - admin_locked reports: IMMUNE — votes ignored
+    - confirmed (blacklist): only admin can change
+    - suspected (whitelist): 5 false votes → back to pending
+    - pending: 5 false votes → flagged for admin review
+    """
     current_admin = get_current_admin()
     try:
         conn = get_connection()
@@ -1035,19 +1002,22 @@ def api_false_report(report_id):
         if not row:
             return jsonify({'error': 'Report not found'}), 404
 
+        # ── IMMUNE: admin-locked reports cannot be demoted by community ──
         if row.get('admin_locked'):
             return jsonify({
-                'message': 'This report has been admin-verified and is immune to community votes.',
-                'immune':  True,
-                'status':  row['status'],
+                'message':  'This report has been admin-verified and is immune to community votes.',
+                'immune':   True,
+                'status':   row['status'],
             }), 200
 
+        # ── Confirmed (blacklist) — only admin can change ──
         if row['status'] == 'approved' and row['list_type'] == 'blacklist':
             return jsonify({
-                'message': 'Confirmed reports can only be changed by an admin. Use the dashboard.',
-                'immune':  True,
+                'message':  'Confirmed reports can only be changed by an admin. Use the dashboard.',
+                'immune':   True,
             }), 200
 
+        # ── Increment false report count ──────────────────────────────
         new_false_count = (row.get('false_report_count') or 0) + 1
         with conn.cursor() as cursor:
             cursor.execute(
@@ -1056,12 +1026,15 @@ def api_false_report(report_id):
             )
         conn.commit()
 
+        # ── Apply demotion if threshold reached ───────────────────────
+        # Threshold: 5 false votes to demote one tier
         THRESHOLD = 5
-        demoted   = False
-        new_tier  = ''
+        demoted = False
+        new_tier = ''
 
         if new_false_count >= THRESHOLD:
             if row['status'] == 'approved' and row['list_type'] == 'whitelist':
+                # Suspected → back to Pending
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE reports SET status='pending', list_type=NULL, false_report_count=0 WHERE id=%s",
@@ -1070,6 +1043,8 @@ def api_false_report(report_id):
                 conn.commit()
                 demoted  = True
                 new_tier = 'pending'
+                print(f"[false-report] Demoted {report_id} from suspected → pending ({new_false_count} false votes)")
+
                 log_audit(
                     action='Community Demoted',
                     target=f"SS-{str(report_id).zfill(5)}",
@@ -1079,6 +1054,7 @@ def api_false_report(report_id):
                 )
 
             elif row['status'] == 'pending':
+                # Pending → flag for admin review (don't remove, just notify)
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE reports SET false_report_count=0 WHERE id=%s",
@@ -1087,22 +1063,23 @@ def api_false_report(report_id):
                 conn.commit()
                 demoted  = True
                 new_tier = 'admin_review'
-                _admin_name = current_admin.get('name', 'Admin') if isinstance(current_admin, dict) else 'Admin'
+                print(f"[false-report] Report {report_id} flagged for admin review ({new_false_count} false votes)")
+
                 log_audit(
                     action='Flagged for Review',
                     target=f"SS-{str(report_id).zfill(5)}",
                     target_id=report_id,
                     detail=f"Pending report received {new_false_count} false votes — needs admin review",
-                    admin_name=_admin_name
+                    admin_name=session.get('admin_name', 'Admin')
                 )
 
         return jsonify({
-            'message':     'Thank you for your feedback.',
-            'false_count': new_false_count,
-            'threshold':   THRESHOLD,
-            'remaining':   max(0, THRESHOLD - new_false_count),
-            'demoted':     demoted,
-            'new_tier':    new_tier,
+            'message':          'Thank you for your feedback.',
+            'false_count':      new_false_count,
+            'threshold':        THRESHOLD,
+            'remaining':        max(0, THRESHOLD - new_false_count),
+            'demoted':          demoted,
+            'new_tier':         new_tier,
         }), 200
 
     except Exception as e:
@@ -1114,24 +1091,26 @@ def api_false_report(report_id):
 @compat_bp.route('/api/admin/audit-log', methods=['GET'])
 @require_token
 def api_audit_log():
+    """Return paginated audit log with search + action + admin filters."""
     try:
         from db import get_connection as _gc
-        page     = max(1, int(request.args.get('page', 1)))
-        per_page = min(50, int(request.args.get('per_page', 20)))
-        action_f = request.args.get('action', '').strip()
-        admin_f  = request.args.get('admin', '').strip()
-        search_f = request.args.get('search', '').strip()
+        page       = max(1, int(request.args.get('page', 1)))
+        per_page   = min(50, int(request.args.get('per_page', 20)))
+        action_f   = request.args.get('action', '').strip()
+        admin_f    = request.args.get('admin', '').strip()
+        search_f   = request.args.get('search', '').strip()
 
         where, params = [], []
         if action_f:
+            # Support partial match for "Changed: X → Y" format
             change_targets = {
                 'Confirmed': '→ Confirmed',
-                'Suspected': '→ Suspected',
-                'Removed':   '→ Removed',
-                'Pending':   '→ Pending',
-                'Login':     'Login',
-                'Community': 'Community',
-                'Bulk':      'Bulk',
+                'Suspected':  '→ Suspected',
+                'Removed':    '→ Removed',
+                'Pending':    '→ Pending',
+                'Login':      'Login',
+                'Community':  'Community',
+                'Bulk':       'Bulk',
             }
             if action_f in change_targets:
                 where.append('action LIKE %s')
@@ -1140,8 +1119,7 @@ def api_audit_log():
                 where.append('action = %s')
                 params.append(action_f)
         if admin_f:
-            where.append('admin_name = %s')
-            params.append(admin_f)
+            where.append('admin_name = %s');       params.append(admin_f)
         if search_f:
             where.append('(target LIKE %s OR detail LIKE %s OR action LIKE %s)')
             like = f'%{search_f}%'
@@ -1154,6 +1132,7 @@ def api_audit_log():
         with conn.cursor() as c:
             c.execute(f'SELECT COUNT(*) as n FROM audit_logs {where_sql}', params)
             total = c.fetchone()['n']
+
             c.execute(f"""
                 SELECT id, action, target, target_id, target_type,
                        detail, admin_name, ip_address, created_at
@@ -1162,8 +1141,10 @@ def api_audit_log():
                 LIMIT %s OFFSET %s
             """, params + [per_page, offset])
             rows = c.fetchall()
+
         conn.close()
 
+        # Build distinct action + admin lists for filter dropdowns
         conn2 = _gc()
         with conn2.cursor() as c:
             c.execute('SELECT DISTINCT action FROM audit_logs ORDER BY action')
@@ -1175,15 +1156,15 @@ def api_audit_log():
         def fmt(row):
             created = row.get('created_at')
             return {
-                'id':         row['id'],
-                'action':     row['action'],
-                'target':     row.get('target', ''),
-                'target_id':  row.get('target_id'),
-                'detail':     row.get('detail', ''),
-                'admin':      row.get('admin_name', 'Admin'),
-                'ip':         row.get('ip_address', ''),
-                'created_at': created.isoformat() if created else '',
-                'time_ago':   _time_ago(created) if created else '',
+                'id':          row['id'],
+                'action':      row['action'],
+                'target':      row.get('target', ''),
+                'target_id':   row.get('target_id'),
+                'detail':      row.get('detail', ''),
+                'admin':       row.get('admin_name', 'Admin'),
+                'ip':          row.get('ip_address', ''),
+                'created_at':  created.isoformat() if created else '',
+                'time_ago':    _time_ago(created) if created else '',
             }
 
         return jsonify({
@@ -1201,6 +1182,7 @@ def api_audit_log():
 
 
 def _time_ago(dt):
+    """Human-readable time difference."""
     if not dt:
         return ''
     diff = datetime.utcnow() - dt.replace(tzinfo=None) if hasattr(dt, 'tzinfo') else datetime.utcnow() - dt
@@ -1209,7 +1191,6 @@ def _time_ago(dt):
     if secs < 3600:  return f'{secs//60}m ago'
     if secs < 86400: return f'{secs//3600}h ago'
     return f'{secs//86400}d ago'
-
 
 @compat_bp.route('/api/admin/spam', methods=['GET'])
 @require_token
